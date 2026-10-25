@@ -11,16 +11,23 @@ interface Props {
   size?: number
   title?: string
   label?: string
+  /** Logarithmic travel; min must be > 0. */
+  log?: boolean
   /** Optional value → text for the title / readout. */
   format?: (v: number) => string
 }
 
 /** Rotary pot: drag vertically, wheel to nudge, double-click to reset. */
-export function Knob({ value, min, max, onChange, reset, color = '#94a3b8', size = 26, title, label, format }: Props) {
-  const drag = useRef<{ y: number; v: number } | null>(null)
+export function Knob({ value, min, max, onChange, reset, color = '#94a3b8', size = 26, title, label, format, log }: Props) {
+  const drag = useRef<{ y: number; f: number } | null>(null)
   const span = max - min
   const clamp = (v: number) => Math.min(max, Math.max(min, v))
-  const frac = (clamp(value) - min) / span
+  const toFrac = (v: number) => (log ? Math.log(clamp(v) / min) / Math.log(max / min) : (clamp(v) - min) / span)
+  const fromFrac = (f: number) => {
+    const k = Math.min(1, Math.max(0, f))
+    return log ? min * Math.pow(max / min, k) : min + k * span
+  }
+  const frac = toFrac(value)
   const angle = -135 + frac * 270
   const r = size / 2 - 2
   const cx = size / 2
@@ -46,16 +53,16 @@ export function Knob({ value, min, max, onChange, reset, color = '#94a3b8', size
         className="nodrag nopan cursor-ns-resize touch-none select-none"
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId)
-          drag.current = { y: e.clientY, v: value }
+          drag.current = { y: e.clientY, f: frac }
         }}
         onPointerMove={(e) => {
           if (!drag.current) return
           const fine = e.shiftKey ? 0.2 : 1
-          onChange(clamp(drag.current.v + ((drag.current.y - e.clientY) / 120) * span * fine))
+          onChange(fromFrac(drag.current.f + ((drag.current.y - e.clientY) / 120) * fine))
         }}
         onPointerUp={() => (drag.current = null)}
         onPointerCancel={() => (drag.current = null)}
-        onWheel={(e) => onChange(clamp(value - Math.sign(e.deltaY) * span * 0.02))}
+        onWheel={(e) => onChange(fromFrac(frac - Math.sign(e.deltaY) * 0.02))}
         onDoubleClick={() => reset !== undefined && onChange(reset)}
       >
         <circle cx={cx} cy={cx} r={r} fill="#0f172a" stroke="#334155" />

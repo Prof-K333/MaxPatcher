@@ -419,6 +419,43 @@ export const NODE_DEFS: Record<string, NodeDef> = Object.assign(Object.create(nu
     ],
   },
 
+  busCompressor: {
+    type: 'busCompressor',
+    icon: '🗜️',
+    description: 'Bus glue compressor, or a sidechain ducker with its own envelope follower.',
+    label: 'Bus Compressor',
+    category: 'effect',
+    accent: '#f59e0b',
+    width: 420,
+    ui: 'busCompressor',
+    ports: 'horizontal',
+    inputs: [
+      { id: 'in', label: 'In L', kind: 'audio' },
+      { id: 'inR', label: 'In R', kind: 'audio' },
+      { id: 'sc', label: 'SC', kind: 'audio' },
+      { id: 'cv:threshold', label: 'Thr CV', kind: 'cv' },
+    ],
+    outputs: [
+      { id: 'out', label: 'Out L', kind: 'audio' },
+      { id: 'outR', label: 'Out R', kind: 'audio' },
+      { id: 'gr', label: 'GR cv', kind: 'cv' },
+    ],
+    params: [
+      { key: 'mode', label: 'Mode', control: 'select', options: ['bus', 'duck'], default: 'bus', hidden: true },
+      { key: 'threshold', label: 'Threshold', control: 'slider', min: -60, max: 0, step: 0.5, unit: 'dB', default: -18, hidden: true },
+      { key: 'ratio', label: 'Ratio', control: 'slider', min: 1, max: 20, step: 0.1, default: 4, hidden: true },
+      { key: 'inf', label: 'Infinity ratio', control: 'toggle', default: 0, hidden: true },
+      { key: 'attack', label: 'Attack', control: 'slider', min: 0.1, max: 100, step: 0.1, unit: 'ms', curve: 'log', default: 10, hidden: true },
+      { key: 'release', label: 'Release', control: 'slider', min: 10, max: 1200, step: 1, unit: 'ms', curve: 'log', default: 150, hidden: true },
+      { key: 'auto', label: 'Auto release', control: 'toggle', default: 0, hidden: true },
+      { key: 'makeup', label: 'Makeup', control: 'slider', min: 0, max: 24, step: 0.1, unit: 'dB', default: 0, hidden: true },
+      { key: 'hpf', label: 'SC HPF', control: 'select', options: ['off', '80', '120', '300'], default: 'off', hidden: true },
+      { key: 'depth', label: 'Duck depth', control: 'slider', min: 0, max: 100, step: 1, unit: '%', default: 100, hidden: true },
+      { key: 'listen', label: 'Listen SC', control: 'toggle', default: 0, hidden: true },
+      { key: 'mod_threshold', label: 'threshold depth', control: 'slider', min: -1, max: 1, step: 0.01, default: 1, hidden: true },
+    ],
+  },
+
   liveLooper: {
     type: 'liveLooper',
     icon: '📼',
