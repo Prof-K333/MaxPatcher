@@ -9,6 +9,7 @@ import { LooperUI } from './nodeui/LooperUI'
 import { GranularUI } from './nodeui/GranularUI'
 import { Drums808UI } from './nodeui/Drums808UI'
 import { MixerUI } from './nodeui/MixerUI'
+import { PerformanceMixerUI } from './nodeui/PerformanceMixerUI'
 import { LiveLooperUI } from './nodeui/LiveLooperUI'
 import { DrumSeqUI } from './nodeui/DrumSeqUI'
 import { ArpUI } from './nodeui/ArpUI'
@@ -25,6 +26,7 @@ const NODE_UI: Record<string, ComponentType<NodeUIProps>> = {
   granular: GranularUI,
   drums808: Drums808UI,
   mixer: MixerUI,
+  performanceMixer: PerformanceMixerUI,
   liveLooper: LiveLooperUI,
   drumSeq: DrumSeqUI,
   arp: ArpUI,

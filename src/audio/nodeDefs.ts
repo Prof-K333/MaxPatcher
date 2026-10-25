@@ -3,6 +3,24 @@ import type { NodeDef, ParamSpec, ParamValues } from './types'
 const audioIn = { id: 'in', label: 'in', kind: 'audio' as const }
 const audioOut = { id: 'out', label: 'out', kind: 'audio' as const }
 
+const PERF_CHANNELS = 6
+const perfStripParams = (): ParamSpec[] =>
+  Array.from({ length: PERF_CHANNELS }, (_, i): ParamSpec[] => {
+    const c = i + 1
+    return [
+      { key: `label${c}`, label: `Label ${c}`, control: 'text', maxLength: 8, default: '', hidden: true },
+      { key: `trim${c}`, label: `Trim ${c}`, control: 'slider', min: -12, max: 12, step: 0.1, unit: 'dB', default: 0, hidden: true },
+      { key: `auxA${c}`, label: `Aux A ${c}`, control: 'slider', min: 0, max: 1, step: 0.01, default: 0, hidden: true },
+      { key: `preA${c}`, label: `Aux A pre ${c}`, control: 'toggle', default: 0, hidden: true },
+      { key: `auxB${c}`, label: `Aux B ${c}`, control: 'slider', min: 0, max: 1, step: 0.01, default: 0, hidden: true },
+      { key: `preB${c}`, label: `Aux B pre ${c}`, control: 'toggle', default: 0, hidden: true },
+      { key: `pan${c}`, label: `Pan ${c}`, control: 'slider', min: -1, max: 1, step: 0.01, default: 0, hidden: true },
+      { key: `mute${c}`, label: `Mute ${c}`, control: 'toggle', default: 0, hidden: true },
+      { key: `solo${c}`, label: `Solo ${c}`, control: 'toggle', default: 0, hidden: true },
+      { key: `fader${c}`, label: `Fader ${c}`, control: 'slider', min: 0, max: 1, step: 0.005, default: 0.75, hidden: true },
+    ]
+  }).flat()
+
 const WAVEFORMS = ['sine', 'triangle', 'sawtooth', 'square']
 
 // Null-prototype so a lookup by untrusted name cannot reach Object.prototype.
@@ -368,6 +386,36 @@ export const NODE_DEFS: Record<string, NodeDef> = Object.assign(Object.create(nu
       { key: 'pan4', label: 'Pan 4', control: 'slider', min: -1, max: 1, step: 0.05, default: 0, hidden: true },
       { key: 'mute4', label: 'Mute 4', control: 'toggle', default: 0, hidden: true },
       { key: 'master', label: 'Master', control: 'slider', min: 0, max: 1.5, step: 0.01, default: 0.9, hidden: true },
+    ],
+  },
+
+  performanceMixer: {
+    type: 'performanceMixer',
+    icon: '🎛️',
+    description: 'Six-channel console: trim, pre/post aux sends, pan, mute/solo, log faders and LED meters.',
+    label: 'Performance Mixer',
+    category: 'effect',
+    accent: '#22d3ee',
+    width: 600,
+    ui: 'performanceMixer',
+    ports: 'horizontal',
+    inputs: [
+      ...Array.from({ length: PERF_CHANNELS }, (_, i) => ({ id: `in${i + 1}`, label: `Ch${i + 1}`, kind: 'audio' as const })),
+      { id: 'retA', label: 'RetA', kind: 'audio' },
+      { id: 'retB', label: 'RetB', kind: 'audio' },
+    ],
+    outputs: [
+      { id: 'outL', label: 'Mst L', kind: 'audio' },
+      { id: 'outR', label: 'Mst R', kind: 'audio' },
+      { id: 'sendA', label: 'AuxA', kind: 'audio' },
+      { id: 'sendB', label: 'AuxB', kind: 'audio' },
+      ...Array.from({ length: PERF_CHANNELS }, (_, i) => ({ id: `d${i + 1}`, label: `D${i + 1}`, kind: 'audio' as const })),
+    ],
+    params: [
+      ...perfStripParams(),
+      { key: 'retA', label: 'Return A', control: 'slider', min: 0, max: 1.5, step: 0.01, default: 1, hidden: true },
+      { key: 'retB', label: 'Return B', control: 'slider', min: 0, max: 1.5, step: 0.01, default: 1, hidden: true },
+      { key: 'master', label: 'Master', control: 'slider', min: 0, max: 1, step: 0.005, default: 0.75, hidden: true },
     ],
   },
 
