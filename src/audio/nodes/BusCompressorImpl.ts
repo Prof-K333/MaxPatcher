@@ -121,7 +121,8 @@ export class BusCompressorImpl extends NodeImpl {
     this.scDirect = ctx.createGain()
     this.scHpf = ctx.createBiquadFilter()
     this.scHpf.type = 'highpass'
-    this.scHpf.Q.value = 0.707
+    // Highpass Q is in dB: -3.01 is the flat Butterworth response.
+    this.scHpf.Q.value = -3.0103
     this.scHpf.frequency.value = 120
     this.scHpfGain = ctx.createGain()
     this.scHpfGain.gain.value = 0

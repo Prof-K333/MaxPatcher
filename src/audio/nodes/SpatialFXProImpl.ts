@@ -16,6 +16,12 @@ const COMB_TIMES = [1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617].map((n) => n
 const ALLPASS_TIMES = [556, 441, 341, 225].map((n) => n / 44100)
 const STEREO_SPREAD = 23 / 44100
 const FROZEN_FEEDBACK = 0.9995
+/**
+ * Lowpass/highpass Q is in dB in Web Audio and defaults to +1 dB — a resonance
+ * peak that, inside a feedback loop, pushes loop gain past unity. -3.01 dB is
+ * the flat (Butterworth) response.
+ */
+const FLAT_Q = -3.0103
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
@@ -168,9 +174,11 @@ export class SpatialFXProImpl extends NodeImpl {
       const hp = this.n(ctx.createBiquadFilter())
       hp.type = 'highpass'
       hp.frequency.value = 100
+      hp.Q.value = FLAT_Q
       const lp = this.n(ctx.createBiquadFilter())
       lp.type = 'lowpass'
       lp.frequency.value = 6000
+      lp.Q.value = FLAT_Q
       const clean = g(0.4)
       const sat = g(0)
       const { pre, shaper } = saturator()
@@ -231,7 +239,7 @@ export class SpatialFXProImpl extends NodeImpl {
     into(this.preDelay, this.revGate)
 
     for (let side = 0; side < 2; side++) {
-      const bankSum = g(0.35)
+      const bankSum = g(0.25)
       for (const base of COMB_TIMES) {
         const time = base + (side ? STEREO_SPREAD : 0)
         const inGain = g(0.25)
@@ -241,6 +249,7 @@ export class SpatialFXProImpl extends NodeImpl {
         const lp = this.n(ctx.createBiquadFilter())
         lp.type = 'lowpass'
         lp.frequency.value = 6000
+        lp.Q.value = FLAT_Q
         const fb = g(0.8)
         into(this.revGate, inGain)
         into(inGain, sum)
@@ -274,6 +283,7 @@ export class SpatialFXProImpl extends NodeImpl {
       const dc = this.n(ctx.createBiquadFilter())
       dc.type = 'highpass'
       dc.frequency.value = 20
+      dc.Q.value = FLAT_Q
       into(tail, dc)
       const level = g(0.5)
       into(dc, level)
@@ -413,7 +423,7 @@ export class SpatialFXProImpl extends NodeImpl {
         const g = c.freeze ? FROZEN_FEEDBACK : Math.min(0.985, Math.pow(10, (-3 * comb.time) / effective))
         this.ramp(comb.fb.gain, g)
         this.ramp(comb.inGain.gain, Math.sqrt(1 - g * g))
-        this.ramp(comb.lp.frequency, c.freeze ? Math.max(damp, 5000) : damp)
+        this.ramp(comb.lp.frequency, c.freeze ? 20000 : damp)
       }
     }
   }
