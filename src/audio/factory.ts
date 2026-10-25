@@ -7,6 +7,9 @@ import { LooperImpl } from './nodes/LooperImpl'
 import { GranularImpl } from './nodes/GranularImpl'
 import { DrumMachine808Impl } from './nodes/DrumMachine808Impl'
 import { MixerImpl } from './nodes/MixerImpl'
+import { BusCompressorImpl } from './nodes/BusCompressorImpl'
+import { SpatialFXProImpl } from './nodes/SpatialFXProImpl'
+import { PerformanceMixerImpl } from './nodes/PerformanceMixerImpl'
 import { LiveLooperImpl } from './nodes/LiveLooperImpl'
 import { DrumSequencerImpl } from './nodes/DrumSequencerImpl'
 import { ArpImpl } from './nodes/ArpImpl'
@@ -65,6 +68,12 @@ export function createNode(type: string, master: Tone.ToneAudioNode): NodeImpl {
       return new DrumMachine808Impl()
     case 'mixer':
       return new MixerImpl()
+    case 'performanceMixer':
+      return new PerformanceMixerImpl()
+    case 'busCompressor':
+      return new BusCompressorImpl()
+    case 'spatialFXPro':
+      return new SpatialFXProImpl()
     case 'liveLooper':
       return new LiveLooperImpl()
     case 'drumSeq':

@@ -365,3 +365,91 @@ class CaptureProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor('capture-processor', CaptureProcessor)
+
+/* ------------------------------------------------------------------------ *
+ * Sidechain ducker detector, registered from this same module (see above).
+ *
+ * Input 0 is the trigger signal, input 1 a threshold CV (audio-rate, mono).
+ * Output 0 is the gain REDUCTION as a linear fraction (0 = untouched, 1 =
+ * silent); the main thread wires it, inverted, onto a GainNode's gain param.
+ * Output 1 is the reduction normalised to 0..1 across 20 dB, for CV and
+ * metering. The gain computer works in dB and smooths the reduction there, so
+ * the return after a hit is a logarithmic (exponential-in-dB) release.
+ * ------------------------------------------------------------------------ */
+
+class DuckProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors() {
+    return [{ name: 'unused', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' }]
+  }
+
+  constructor() {
+    super()
+    this.cfg = { threshold: -24, ratio: 4, attack: 10, release: 150, auto: false, depth: 1, knee: 6, cvDb: 30 }
+    this.power = 0
+    this.grDb = 0
+    this.frames = 0
+    this.port.onmessage = (e) => {
+      if (e.data?.type === 'config') Object.assign(this.cfg, e.data)
+    }
+  }
+
+  process(inputs, outputs) {
+    const redLin = outputs[0]?.[0]
+    const redCv = outputs[1]?.[0]
+    if (!redLin || !redCv) return true
+
+    const sc = inputs[0]?.[0]
+    const cv = inputs[1]?.[0]
+    const c = this.cfg
+    const n = redLin.length
+
+    let cvMean = 0
+    if (cv) {
+      for (let i = 0; i < n; i++) cvMean += cv[i]
+      cvMean /= n
+    }
+    const threshold = c.threshold + cvMean * c.cvDb
+    const slope = 1 - 1 / Math.max(1, c.ratio)
+    const knee = c.knee
+
+    const atk = 1 - Math.exp(-1 / (sampleRate * Math.max(0.0001, c.attack / 1000)))
+    // Detector: ~1 ms rise, ~25 ms fall, so a kick registers at once but a
+    // single zero crossing does not make the envelope collapse.
+    const pUp = 1 - Math.exp(-1 / (sampleRate * 0.001))
+    const pDown = 1 - Math.exp(-1 / (sampleRate * 0.025))
+
+    for (let i = 0; i < n; i++) {
+      const x = sc ? sc[i] : 0
+      const sq = x * x
+      this.power += (sq - this.power) * (sq > this.power ? pUp : pDown)
+      const levelDb = 10 * Math.log10(this.power + 1e-12)
+      const over = levelDb - threshold
+
+      let target = 0
+      if (2 * over > knee) target = slope * over
+      else if (2 * over > -knee) target = (slope * (over + knee / 2) * (over + knee / 2)) / (2 * knee)
+
+      let relMs = c.release
+      // Auto: deeper reduction recovers more slowly, shallow hits snap back.
+      if (c.auto) relMs = Math.min(800, 50 + 40 * this.grDb)
+      const rel = 1 - Math.exp(-1 / (sampleRate * Math.max(0.001, relMs / 1000)))
+
+      this.grDb += (target - this.grDb) * (target > this.grDb ? atk : rel)
+      if (this.grDb < 0) this.grDb = 0
+
+      const reduction = c.depth * (1 - Math.pow(10, -this.grDb / 20))
+      redLin[i] = reduction
+      redCv[i] = Math.min(1, -20 * Math.log10(Math.max(1e-4, 1 - reduction)) / 20)
+    }
+
+    this.frames += n
+    if (this.frames >= 1024) {
+      this.frames = 0
+      const r = redLin[n - 1]
+      this.port.postMessage({ type: 'gr', db: -20 * Math.log10(Math.max(1e-4, 1 - r)) })
+    }
+    return true
+  }
+}
+
+registerProcessor('duck-processor', DuckProcessor)

@@ -3,6 +3,24 @@ import type { NodeDef, ParamSpec, ParamValues } from './types'
 const audioIn = { id: 'in', label: 'in', kind: 'audio' as const }
 const audioOut = { id: 'out', label: 'out', kind: 'audio' as const }
 
+const PERF_CHANNELS = 6
+const perfStripParams = (): ParamSpec[] =>
+  Array.from({ length: PERF_CHANNELS }, (_, i): ParamSpec[] => {
+    const c = i + 1
+    return [
+      { key: `label${c}`, label: `Label ${c}`, control: 'text', maxLength: 8, default: '', hidden: true },
+      { key: `trim${c}`, label: `Trim ${c}`, control: 'slider', min: -12, max: 12, step: 0.1, unit: 'dB', default: 0, hidden: true },
+      { key: `auxA${c}`, label: `Aux A ${c}`, control: 'slider', min: 0, max: 1, step: 0.01, default: 0, hidden: true },
+      { key: `preA${c}`, label: `Aux A pre ${c}`, control: 'toggle', default: 0, hidden: true },
+      { key: `auxB${c}`, label: `Aux B ${c}`, control: 'slider', min: 0, max: 1, step: 0.01, default: 0, hidden: true },
+      { key: `preB${c}`, label: `Aux B pre ${c}`, control: 'toggle', default: 0, hidden: true },
+      { key: `pan${c}`, label: `Pan ${c}`, control: 'slider', min: -1, max: 1, step: 0.01, default: 0, hidden: true },
+      { key: `mute${c}`, label: `Mute ${c}`, control: 'toggle', default: 0, hidden: true },
+      { key: `solo${c}`, label: `Solo ${c}`, control: 'toggle', default: 0, hidden: true },
+      { key: `fader${c}`, label: `Fader ${c}`, control: 'slider', min: 0, max: 1, step: 0.005, default: 0.75, hidden: true },
+    ]
+  }).flat()
+
 const WAVEFORMS = ['sine', 'triangle', 'sawtooth', 'square']
 
 // Null-prototype so a lookup by untrusted name cannot reach Object.prototype.
@@ -368,6 +386,117 @@ export const NODE_DEFS: Record<string, NodeDef> = Object.assign(Object.create(nu
       { key: 'pan4', label: 'Pan 4', control: 'slider', min: -1, max: 1, step: 0.05, default: 0, hidden: true },
       { key: 'mute4', label: 'Mute 4', control: 'toggle', default: 0, hidden: true },
       { key: 'master', label: 'Master', control: 'slider', min: 0, max: 1.5, step: 0.01, default: 0.9, hidden: true },
+    ],
+  },
+
+  performanceMixer: {
+    type: 'performanceMixer',
+    icon: '🎛️',
+    description: 'Six-channel console: trim, pre/post aux sends, pan, mute/solo, log faders and LED meters.',
+    label: 'Performance Mixer',
+    category: 'effect',
+    accent: '#22d3ee',
+    width: 600,
+    ui: 'performanceMixer',
+    ports: 'horizontal',
+    inputs: [
+      ...Array.from({ length: PERF_CHANNELS }, (_, i) => ({ id: `in${i + 1}`, label: `Ch${i + 1}`, kind: 'audio' as const })),
+      { id: 'retA', label: 'RetA', kind: 'audio' },
+      { id: 'retB', label: 'RetB', kind: 'audio' },
+    ],
+    outputs: [
+      { id: 'outL', label: 'Mst L', kind: 'audio' },
+      { id: 'outR', label: 'Mst R', kind: 'audio' },
+      { id: 'sendA', label: 'AuxA', kind: 'audio' },
+      { id: 'sendB', label: 'AuxB', kind: 'audio' },
+      ...Array.from({ length: PERF_CHANNELS }, (_, i) => ({ id: `d${i + 1}`, label: `D${i + 1}`, kind: 'audio' as const })),
+    ],
+    params: [
+      ...perfStripParams(),
+      { key: 'retA', label: 'Return A', control: 'slider', min: 0, max: 1.5, step: 0.01, default: 1, hidden: true },
+      { key: 'retB', label: 'Return B', control: 'slider', min: 0, max: 1.5, step: 0.01, default: 1, hidden: true },
+      { key: 'master', label: 'Master', control: 'slider', min: 0, max: 1, step: 0.005, default: 0.75, hidden: true },
+    ],
+  },
+
+  busCompressor: {
+    type: 'busCompressor',
+    icon: '🗜️',
+    description: 'Bus glue compressor, or a sidechain ducker with its own envelope follower.',
+    label: 'Bus Compressor',
+    category: 'effect',
+    accent: '#f59e0b',
+    width: 420,
+    ui: 'busCompressor',
+    ports: 'horizontal',
+    inputs: [
+      { id: 'in', label: 'In L', kind: 'audio' },
+      { id: 'inR', label: 'In R', kind: 'audio' },
+      { id: 'sc', label: 'SC', kind: 'audio' },
+      { id: 'cv:threshold', label: 'Thr CV', kind: 'cv' },
+    ],
+    outputs: [
+      { id: 'out', label: 'Out L', kind: 'audio' },
+      { id: 'outR', label: 'Out R', kind: 'audio' },
+      { id: 'gr', label: 'GR cv', kind: 'cv' },
+    ],
+    params: [
+      { key: 'mode', label: 'Mode', control: 'select', options: ['bus', 'duck'], default: 'bus', hidden: true },
+      { key: 'threshold', label: 'Threshold', control: 'slider', min: -60, max: 0, step: 0.5, unit: 'dB', default: -18, hidden: true },
+      { key: 'ratio', label: 'Ratio', control: 'slider', min: 1, max: 20, step: 0.1, default: 4, hidden: true },
+      { key: 'inf', label: 'Infinity ratio', control: 'toggle', default: 0, hidden: true },
+      { key: 'attack', label: 'Attack', control: 'slider', min: 0.1, max: 100, step: 0.1, unit: 'ms', curve: 'log', default: 10, hidden: true },
+      { key: 'release', label: 'Release', control: 'slider', min: 10, max: 1200, step: 1, unit: 'ms', curve: 'log', default: 150, hidden: true },
+      { key: 'auto', label: 'Auto release', control: 'toggle', default: 0, hidden: true },
+      { key: 'makeup', label: 'Makeup', control: 'slider', min: 0, max: 24, step: 0.1, unit: 'dB', default: 0, hidden: true },
+      { key: 'hpf', label: 'SC HPF', control: 'select', options: ['off', '80', '120', '300'], default: 'off', hidden: true },
+      { key: 'depth', label: 'Duck depth', control: 'slider', min: 0, max: 100, step: 1, unit: '%', default: 100, hidden: true },
+      { key: 'listen', label: 'Listen SC', control: 'toggle', default: 0, hidden: true },
+      { key: 'mod_threshold', label: 'threshold depth', control: 'slider', min: -1, max: 1, step: 0.01, default: 1, hidden: true },
+    ],
+  },
+
+  spatialFXPro: {
+    type: 'spatialFXPro',
+    icon: '🌌',
+    description: 'Ping-pong / tape delay and plate reverb in one unit, in parallel or series.',
+    label: 'Spatial FX Pro',
+    category: 'effect',
+    accent: '#22d3ee',
+    width: 520,
+    ui: 'spatialFXPro',
+    ports: 'horizontal',
+    inputs: [
+      { id: 'in', label: 'In L', kind: 'audio' },
+      { id: 'inR', label: 'In R', kind: 'audio' },
+      { id: 'ev:clock', label: 'Clock', kind: 'event' },
+      { id: 'cv:delayTime', label: 'Time CV', kind: 'cv' },
+      { id: 'cv:size', label: 'Size CV', kind: 'cv' },
+    ],
+    outputs: [
+      { id: 'out', label: 'Out L', kind: 'audio' },
+      { id: 'outR', label: 'Out R', kind: 'audio' },
+    ],
+    params: [
+      { key: 'mode', label: 'Routing', control: 'select', options: ['parallel', 'series'], default: 'parallel', hidden: true },
+      { key: 'time', label: 'Delay time', control: 'slider', min: 1, max: 2000, step: 1, unit: 'ms', curve: 'log', default: 375, hidden: true },
+      { key: 'sync', label: 'Sync', control: 'toggle', default: 0, hidden: true },
+      { key: 'division', label: 'Division', control: 'select', options: ['1/16', '1/8', '1/8.', '1/4', '1/2'], default: '1/8', hidden: true },
+      { key: 'bpm', label: 'Tempo', control: 'slider', min: 40, max: 240, step: 0.1, default: 120, hidden: true },
+      { key: 'feedback', label: 'Feedback', control: 'slider', min: 0, max: 110, step: 1, unit: '%', default: 40, hidden: true },
+      { key: 'dDamp', label: 'Delay damping', control: 'slider', min: 0, max: 1, step: 0.01, default: 0.4, hidden: true },
+      { key: 'wow', label: 'Wow / flutter', control: 'slider', min: 0, max: 1, step: 0.01, default: 0.15, hidden: true },
+      { key: 'pingpong', label: 'Ping-pong', control: 'toggle', default: 1, hidden: true },
+      { key: 'delayLevel', label: 'Delay level', control: 'slider', min: 0, max: 1, step: 0.01, default: 0.6, hidden: true },
+      { key: 'predelay', label: 'Pre-delay', control: 'slider', min: 0, max: 120, step: 1, unit: 'ms', default: 20, hidden: true },
+      { key: 'decay', label: 'Decay', control: 'slider', min: 0.2, max: 15, step: 0.1, unit: 's', curve: 'log', default: 2.5, hidden: true },
+      { key: 'rDamp', label: 'Reverb damping', control: 'slider', min: 0, max: 1, step: 0.01, default: 0.5, hidden: true },
+      { key: 'diffusion', label: 'Diffusion', control: 'slider', min: 0, max: 1, step: 0.01, default: 0.7, hidden: true },
+      { key: 'freeze', label: 'Freeze', control: 'toggle', default: 0, hidden: true },
+      { key: 'reverbLevel', label: 'Reverb level', control: 'slider', min: 0, max: 1, step: 0.01, default: 0.5, hidden: true },
+      { key: 'mix', label: 'Dry/Wet', control: 'slider', min: 0, max: 1, step: 0.01, default: 0.35, hidden: true },
+      { key: 'mod_delayTime', label: 'time depth', control: 'slider', min: -1, max: 1, step: 0.01, default: 1, hidden: true },
+      { key: 'mod_size', label: 'size depth', control: 'slider', min: -1, max: 1, step: 0.01, default: 1, hidden: true },
     ],
   },
 
