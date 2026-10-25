@@ -28,8 +28,15 @@ export class FMSynthImpl extends NodeImpl {
   private fmDepth = new CVInlet(1)
   private baseIndex = 10
   private cvTimer: number | null = null
-  /** Notes currently held, so a CV sweep can be re-applied to live voices. */
-  private held = new Set<number>()
+  /**
+   * Notes currently held, mapped to the exact frequency each was attacked at.
+   *
+   * PolySynth matches a release to a voice by the value it was handed, so the
+   * release has to repeat that value rather than recompute one from the note:
+   * anything not in exact equal temperament — a detuned source, a bend, a
+   * microtonal scale — would otherwise strand the voice, sounding for ever.
+   */
+  private held = new Map<number, number>()
 
   constructor() {
     super()
@@ -110,14 +117,22 @@ export class FMSynthImpl extends NodeImpl {
     // play now.
     const at = event.time ?? Tone.now()
     switch (event.type) {
-      case 'noteOn':
-        this.held.add(event.note)
+      case 'noteOn': {
+        // Re-striking a key that is already down releases the voice it is
+        // already using: a second attack would otherwise outlive the single
+        // note-off that follows it.
+        const sounding = this.held.get(event.note)
+        if (sounding !== undefined) this.synth.triggerRelease(sounding, at)
+        this.held.set(event.note, event.freq)
         this.synth.triggerAttack(event.freq, at, event.velocity)
         break
-      case 'noteOff':
+      }
+      case 'noteOff': {
+        const sounding = this.held.get(event.note) ?? Tone.Frequency(event.note, 'midi').toFrequency()
         this.held.delete(event.note)
-        this.synth.triggerRelease(Tone.Frequency(event.note, 'midi').toFrequency(), at)
+        this.synth.triggerRelease(sounding, at)
         break
+      }
       case 'bang':
         this.synth.triggerAttackRelease('C4', 0.25, at, event.velocity ?? 0.8)
         break
