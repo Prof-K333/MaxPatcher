@@ -2,6 +2,12 @@ import * as Tone from 'tone'
 import { NodeImpl, type AudioTarget } from '../NodeImpl'
 import type { PatchEvent } from '../types'
 
+/**
+ * How far before the loop boundary a held note is released. Long enough that
+ * the voice's own release is audible, short enough not to clip the phrase.
+ */
+const TAIL_GUARD = 0.01
+
 interface RecordedEvent {
   /** Position within the loop, in seconds. */
   at: number
@@ -63,7 +69,10 @@ export class LooperImpl extends NodeImpl {
     const secondsPerBeat = 60 / Tone.getTransport().bpm.value
     const grid = secondsPerBeat / this.quantizeDivision
     const snapped = Math.round(time / grid) * grid
-    return snapped % this.loopSeconds
+    // Clamped, never wrapped: a note-off snapped up to the loop boundary used
+    // to come back round as 0, landing ahead of its own note-on. The voice
+    // then never got released, and every pass stacked another one.
+    return Math.min(snapped, Math.max(0, this.loopSeconds - TAIL_GUARD))
   }
 
   setRecording(on: boolean) {
@@ -84,9 +93,31 @@ export class LooperImpl extends NodeImpl {
 
   private commit() {
     if (!this.incoming.length) return
-    this.events = this.events.concat(this.incoming).sort((a, b) => a.at - b.at)
+    const merged = this.closeHeldNotes(this.events.concat(this.incoming))
+    this.events = merged.sort((a, b) => a.at - b.at)
     this.incoming = []
     this.reschedule()
+  }
+
+  /**
+   * Gives every note-on in the take a note-off.
+   *
+   * A pass can easily capture one without the other — you stop recording
+   * while still holding a key, or the key goes down near the end of the loop
+   * and comes up after the wrap. The loop then replays a note that is never
+   * released, and since it repeats, each pass leaves another voice sounding
+   * until the patch is a wall of drone. Releasing them at the boundary keeps
+   * a loop self-contained.
+   */
+  private closeHeldNotes(list: RecordedEvent[]): RecordedEvent[] {
+    const held = new Set<number>()
+    for (const rec of list) {
+      if (rec.event.type === 'noteOn') held.add(rec.event.note)
+      else if (rec.event.type === 'noteOff') held.delete(rec.event.note)
+    }
+    if (!held.size) return list
+    const at = Math.max(0, this.loopSeconds - TAIL_GUARD)
+    return list.concat([...held].map((note) => ({ at, event: { type: 'noteOff' as const, note } })))
   }
 
   clear() {
