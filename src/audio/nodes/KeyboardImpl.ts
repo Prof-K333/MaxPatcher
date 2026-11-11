@@ -65,13 +65,21 @@ export class KeyboardImpl extends NodeImpl {
   }
 
   onStop() {
-    this.held = []
-    this.gate.value = 0
+    this.releaseHeld()
   }
 
   dispose() {
+    this.releaseHeld()
     this.pitch.dispose()
     this.gate.dispose()
     this.velocity.dispose()
+  }
+
+  /** Drops sounding notes and tells anything patched to the note outlet. */
+  private releaseHeld() {
+    const sounding = [...this.held]
+    this.held = []
+    this.gate.value = 0
+    for (const note of sounding) this.emit('ev:note', { type: 'noteOff', note })
   }
 }

@@ -213,4 +213,14 @@ describe('AudioEngine.sync', () => {
     engine.sendEvent('kbd-1', 'ev:note', { type: 'noteOn', note: 60, freq: 261.63, velocity: 0.8 })
     expect(received).toEqual([{ type: 'noteOn', note: 60, freq: 261.63, velocity: 0.8 }])
   })
+
+  it('swallows a throwing setParam so one bad write cannot break the graph', () => {
+    engine.sync([node('osc-1', 'oscillator', { frequency: 110 })], [])
+    created[0].setParam = () => {
+      throw new Error('cannot set value of an overridden param')
+    }
+    expect(() => engine.sync([node('osc-1', 'oscillator', { frequency: 880 })], [])).not.toThrow()
+    expect(engine.getImpl('osc-1')).toBe(created[0])
+    expect(created).toHaveLength(1)
+  })
 })

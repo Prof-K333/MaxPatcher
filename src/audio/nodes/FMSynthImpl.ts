@@ -151,6 +151,8 @@ export class FMSynthImpl extends NodeImpl {
 
   dispose() {
     this.stopCVPolling()
+    this.synth.releaseAll()
+    this.held.clear()
     this.synth.dispose()
     this.fmDepth.dispose()
   }
