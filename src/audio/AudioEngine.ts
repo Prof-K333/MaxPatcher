@@ -226,6 +226,7 @@ export class AudioEngine {
 
     for (const flowNode of flowNodes) {
       let node = this.nodes.get(flowNode.id)
+      const created = !node
       if (!node) {
         if (!Object.hasOwn(NODE_DEFS, flowNode.data.type)) continue
         try {
@@ -237,7 +238,11 @@ export class AudioEngine {
         this.nodes.set(flowNode.id, node)
       }
       this.applyParams(node, flowNode.data.params)
-      if (this.running) {
+      // Start only nodes that just appeared. App.tsx syncs on every visual
+      // change, including dragging a node, and onStart() is not always
+      // idempotent — Phrase Looper reschedules its Transport slots and would
+      // double-book notes mid-play. Existing nodes are started from start().
+      if (created && this.running) {
         try {
           node.impl.onStart()
         } catch (err) {

@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "max-patcher",
-      "runtimeExecutable": "/tmp/node-v20.18.0-darwin-arm64/bin/npm",
+      "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 4319
     }
