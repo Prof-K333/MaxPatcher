@@ -3,16 +3,16 @@
 A node-based visual audio patcher in the spirit of Max/MSP. Drag cables between
 nodes on a React Flow canvas; the Web Audio graph is rebuilt to match in real time.
 
+Released under the [MIT License](./LICENSE).
+
 ## Stack
 
 Vite · React 19 · TypeScript · Tailwind CSS 4 · `@xyflow/react` 12 · Tone.js 15
 
 ## Running it
 
-This machine has no system Node, so use the portable build:
-
 ```bash
-export PATH="/tmp/node-v20.18.0-darwin-arm64/bin:$PATH" && npm run dev --prefix /Users/krapels/Documents/Blockscout/max-patcher
+npm install && npm run dev
 ```
 
 The dev server binds every interface (`server.host: true`), not just IPv6
@@ -48,7 +48,7 @@ the top. The sequencer starts stopped, so Start Audio alone makes no noise.
 | `src/components/Piano.tsx` | The playable keyboard, shared by the node and the dock. |
 | `src/patch/format.ts` | Patch file format — serialize, and validate untrusted JSON on the way in. |
 | `src/patch/storage.ts` | localStorage autosave and named slots. |
-| `src/patch/presets.ts` | The five example patches. |
+| `src/patch/presets.ts` | The six example patches. |
 
 The React layer never touches Tone directly. It calls `engine.sync()` with the
 current nodes and edges, and the engine works out the difference — creating,
@@ -308,8 +308,10 @@ toolbar slider and the Master Out node are two views of one value.
 
 ## Example patches
 
-**Patches → Example patches** loads five demos, each built to show a different
-part of the app and to make sound as soon as it loads:
+**Patches → Example patches** loads six demos. Each one is a saved performance
+setup that wires modules together (they live in `src/patch/presets.ts` rather
+than as separate files on disk). They are built to show a different part of
+the app and to make sound as soon as they load:
 
 | Patch | Shows |
 | --- | --- |
