@@ -16,6 +16,8 @@ import { LiveLooperUI } from './nodeui/LiveLooperUI'
 import { DrumSeqUI } from './nodeui/DrumSeqUI'
 import { ArpUI } from './nodeui/ArpUI'
 import { MasterUI } from './nodeui/MasterUI'
+import { MidiInUI } from './nodeui/MidiInUI'
+import { ScopeUI } from './nodeui/ScopeUI'
 import type { NodeUIProps } from './nodeui/types'
 
 type PatchNode = Node<PatchNodeData>
@@ -35,6 +37,8 @@ const NODE_UI: Record<string, ComponentType<NodeUIProps>> = {
   drumSeq: DrumSeqUI,
   arp: ArpUI,
   master: MasterUI,
+  midiIn: MidiInUI,
+  scope: ScopeUI,
 }
 
 /** Each port kind gets its own colour and shape so cables read at a glance. */

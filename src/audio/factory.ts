@@ -14,6 +14,10 @@ import { LiveLooperImpl } from './nodes/LiveLooperImpl'
 import { DrumSequencerImpl } from './nodes/DrumSequencerImpl'
 import { ArpImpl } from './nodes/ArpImpl'
 import { MasterOutImpl } from './nodes/MasterOutImpl'
+import { EnvelopeImpl } from './nodes/EnvelopeImpl'
+import { VCAImpl } from './nodes/VCAImpl'
+import { MidiInImpl } from './nodes/MidiInImpl'
+import { ScopeImpl } from './nodes/ScopeImpl'
 
 /** Builds the implementation behind one node type. */
 export function createNode(type: string, master: Tone.ToneAudioNode): NodeImpl {
@@ -80,6 +84,14 @@ export function createNode(type: string, master: Tone.ToneAudioNode): NodeImpl {
       return new DrumSequencerImpl()
     case 'arp':
       return new ArpImpl()
+    case 'envelope':
+      return new EnvelopeImpl()
+    case 'vca':
+      return new VCAImpl()
+    case 'midiIn':
+      return new MidiInImpl()
+    case 'scope':
+      return new ScopeImpl()
     case 'destination':
       return new MasterOutImpl(master)
     default:
