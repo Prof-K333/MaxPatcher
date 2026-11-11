@@ -12,6 +12,7 @@ import {
   type Connection,
   type Edge,
   type Node,
+  type NodeChange,
   type OnConnect,
 } from '@xyflow/react'
 
@@ -24,8 +25,10 @@ import { PatchMenu } from './components/PatchMenu'
 import { DockedKeyboard } from './components/DockedKeyboard'
 import { midiToFreq } from './components/Piano'
 import { deserialize, serialize, PatchParseError } from './patch/format'
+import { PatchHistory, toSnapshot } from './patch/history'
 import { PRESETS } from './patch/presets'
 import { downloadPatch, readFileAsJSON } from './patch/file'
+import { decodeShare, readShareHash, shareUrl, ShareError } from './patch/share'
 import { deleteSlot, loadAutosave, readSlot, saveAutosave, saveSlot } from './patch/storage'
 
 type PNode = Node<PatchNodeData>
@@ -74,27 +77,95 @@ const initialEdges = (): Edge[] => [
   { id: 'e-drums', source: 'drums-1', sourceHandle: 'out', target: 'master', targetHandle: 'in' },
 ]
 
-/** Restores the last session, falling back to the demo patch. */
-const restored = (() => {
-  const saved = loadAutosave()
-  if (!saved) return null
-  try {
-    return deserialize(saved)
-  } catch {
-    return null
+type BootResult = {
+  name: string
+  nodes: PNode[]
+  edges: Edge[]
+  warnings: string[]
+  /** Shown once on first paint when a share URL could not be loaded. */
+  bootError?: string
+}
+
+/**
+ * Boot order: a `#p=` share hash wins for the first load only, then the
+ * autosaved session, then the default starting patch. A bad hash never
+ * crashes the UI — it falls through with a warning.
+ */
+const boot = (): BootResult => {
+  const hashPayload = typeof window !== 'undefined' ? readShareHash(window.location.hash) : null
+  const dropShareHash = () => {
+    // Drop the hash so a refresh keeps the (soon autosaved) session instead
+    // of re-importing the same share payload — or a broken hash — forever.
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+    }
   }
-})()
+
+  if (hashPayload !== null) {
+    try {
+      const parsed = deserialize(decodeShare(hashPayload))
+      dropShareHash()
+      return parsed
+    } catch (err) {
+      dropShareHash()
+      const message =
+        err instanceof ShareError || err instanceof PatchParseError
+          ? err.message
+          : 'Shared patch could not be loaded.'
+      // Fall through to autosave / default, and surface the reason.
+      const saved = loadAutosave()
+      if (saved) {
+        try {
+          return { ...deserialize(saved), bootError: message }
+        } catch {
+          /* ignore broken autosave */
+        }
+      }
+      return {
+        name: 'Untitled',
+        nodes: initialNodes(),
+        edges: initialEdges(),
+        warnings: [],
+        bootError: message,
+      }
+    }
+  }
+
+  const saved = loadAutosave()
+  if (saved) {
+    try {
+      return deserialize(saved)
+    } catch {
+      /* fall through */
+    }
+  }
+  return { name: 'Untitled', nodes: initialNodes(), edges: initialEdges(), warnings: [] }
+}
+
+const restored = boot()
 
 type Toast = { kind: 'info' | 'error'; text: string }
 
 function Patcher() {
-  const [nodes, setNodes, onNodesChange] = useNodesState<PNode>(restored?.nodes ?? initialNodes())
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(restored?.edges ?? initialEdges())
+  const [nodes, setNodes, onNodesChangeBase] = useNodesState<PNode>(restored.nodes)
+  const [edges, setEdges, onEdgesChangeBase] = useEdgesState<Edge>(restored.edges)
   const [running, setRunning] = useState(engine.running)
-  const [patchName, setPatchName] = useState(restored?.name ?? 'Untitled')
-  const [toast, setToast] = useState<Toast | null>(null)
+  const [patchName, setPatchName] = useState(restored.name)
+  const [toast, setToast] = useState<Toast | null>(() => {
+    if (restored.bootError) return { kind: 'error', text: restored.bootError }
+    if (restored.warnings.length) {
+      return { kind: 'error', text: `Loaded with ${restored.warnings.length} issue(s): ${restored.warnings[0]}` }
+    }
+    return null
+  })
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
 
   const nodeTypes = useMemo(() => ({ patch: PatchNodeView }), [])
+  const historyRef = useRef(new PatchHistory(toSnapshot(restored.name, restored.nodes, restored.edges)))
+  const nodesRef = useRef(nodes)
+  const edgesRef = useRef(edges)
+  const nameRef = useRef(patchName)
 
   const notify = useCallback((kind: Toast['kind'], text: string) => setToast({ kind, text }), [])
 
@@ -103,6 +174,144 @@ function Patcher() {
     const t = setTimeout(() => setToast(null), toast.kind === 'error' ? 6000 : 2500)
     return () => clearTimeout(t)
   }, [toast])
+
+  const applyingHistory = useRef(false)
+  const deferGesture = useRef(false)
+  const draggingNode = useRef(false)
+
+  const bumpHistory = () => {
+    setCanUndo(historyRef.current.canUndo)
+    setCanRedo(historyRef.current.canRedo)
+  }
+
+  const commitHistory = useCallback(() => {
+    if (applyingHistory.current || deferGesture.current || draggingNode.current) return
+    if (historyRef.current.commit(toSnapshot(nameRef.current, nodesRef.current, edgesRef.current))) {
+      bumpHistory()
+    }
+  }, [])
+
+  // Commit after React has applied the latest graph, except mid-drag / mid-slider.
+  useEffect(() => {
+    nodesRef.current = nodes
+    edgesRef.current = edges
+    nameRef.current = patchName
+    if (applyingHistory.current) {
+      applyingHistory.current = false
+      bumpHistory()
+      return
+    }
+    commitHistory()
+  }, [nodes, edges, patchName, commitHistory])
+
+  const applySnapshot = useCallback(
+    (snap: ReturnType<typeof toSnapshot>) => {
+      applyingHistory.current = true
+      setEdges([])
+      setNodes(
+        snap.nodes.map((n) => ({
+          id: n.id,
+          type: n.type,
+          position: { ...n.position },
+          data: { type: n.data.type, params: { ...n.data.params } },
+        })),
+      )
+      setEdges(
+        snap.edges.map((e) => ({
+          id: e.id,
+          source: e.source,
+          sourceHandle: e.sourceHandle ?? 'out',
+          target: e.target,
+          targetHandle: e.targetHandle ?? 'in',
+        })),
+      )
+      setPatchName(snap.name)
+    },
+    [setNodes, setEdges],
+  )
+
+  const undo = useCallback(() => {
+    const present = toSnapshot(nameRef.current, nodesRef.current, edgesRef.current)
+    const prev = historyRef.current.undo(present)
+    if (!prev) return
+    applySnapshot(prev)
+  }, [applySnapshot])
+
+  const redo = useCallback(() => {
+    const present = toSnapshot(nameRef.current, nodesRef.current, edgesRef.current)
+    const next = historyRef.current.redo(present)
+    if (!next) return
+    applySnapshot(next)
+  }, [applySnapshot])
+
+  const onNodesChange = useCallback(
+    (changes: NodeChange<PNode>[]) => {
+      if (changes.some((c) => c.type === 'position' && c.dragging === true)) draggingNode.current = true
+      if (changes.some((c) => c.type === 'position' && c.dragging === false)) draggingNode.current = false
+      onNodesChangeBase(changes)
+    },
+    [onNodesChangeBase],
+  )
+
+  const onEdgesChange = onEdgesChangeBase
+
+  useEffect(() => {
+    const isText = (t: EventTarget | null) =>
+      t instanceof HTMLTextAreaElement ||
+      t instanceof HTMLInputElement && (t.type === 'text' || t.type === 'search' || t.type === '')
+
+    const isSlider = (t: EventTarget | null) =>
+      t instanceof Element && !!t.closest('input[type="range"], [role="slider"]')
+
+    const onDown = (e: PointerEvent) => {
+      if (isSlider(e.target)) deferGesture.current = true
+    }
+    const onUp = () => {
+      if (!deferGesture.current || isText(document.activeElement)) return
+      deferGesture.current = false
+      commitHistory()
+    }
+    const onFocusIn = (e: FocusEvent) => {
+      if (isText(e.target)) deferGesture.current = true
+    }
+    const onFocusOut = (e: FocusEvent) => {
+      if (!isText(e.target) || !deferGesture.current) return
+      deferGesture.current = false
+      commitHistory()
+    }
+    window.addEventListener('pointerdown', onDown)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('focusin', onFocusIn)
+    window.addEventListener('focusout', onFocusOut)
+    return () => {
+      window.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('focusin', onFocusIn)
+      window.removeEventListener('focusout', onFocusOut)
+    }
+  }, [commitHistory])
+
+  useEffect(() => {
+    const isTyping = (t: EventTarget | null) =>
+      t instanceof HTMLElement &&
+      (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || isTyping(e.target)) return
+      const key = e.key.toLowerCase()
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+        return
+      }
+      if ((key === 'z' && e.shiftKey) || key === 'y') {
+        e.preventDefault()
+        redo()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
 
   // The one place the visual graph drives the audio graph. Guarded because an
   // exception escaping an effect unmounts the entire React tree — the UI would
@@ -295,6 +504,16 @@ function Patcher() {
 
   const handleExport = () => downloadPatch(serialize(patchName, nodes, edges))
 
+  const handleShare = async () => {
+    try {
+      const url = shareUrl(serialize(patchName, nodes, edges), window.location)
+      await navigator.clipboard.writeText(url)
+      notify('info', 'Share link copied')
+    } catch (err) {
+      notify('error', err instanceof Error ? err.message : 'Could not copy a share link.')
+    }
+  }
+
   const handleImport = async (file: File) => {
     try {
       const parsed = deserialize(await readFileAsJSON(file))
@@ -314,6 +533,10 @@ function Patcher() {
         onMasterVolume={setMasterVolume}
         onAdd={addNode}
         onClear={clearPatch}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={undo}
+        onRedo={redo}
       >
         <PatchMenu
           patchName={patchName}
@@ -322,6 +545,7 @@ function Patcher() {
           onLoad={handleLoad}
           onDelete={handleDelete}
           onExport={handleExport}
+          onShare={handleShare}
           onImport={handleImport}
           onLoadPreset={handleLoadPreset}
         />

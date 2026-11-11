@@ -10,6 +10,10 @@ interface Props {
   onMasterVolume: (db: number) => void
   onAdd: (type: string) => void
   onClear: () => void
+  canUndo?: boolean
+  canRedo?: boolean
+  onUndo?: () => void
+  onRedo?: () => void
 }
 
 /** Post-master peak meter, polled off the render loop. */
@@ -71,7 +75,19 @@ function PatchLegend() {
   )
 }
 
-export function Toolbar({ children, running, onToggle, masterVolume, onMasterVolume, onAdd, onClear }: Props) {
+export function Toolbar({
+  children,
+  running,
+  onToggle,
+  masterVolume,
+  onMasterVolume,
+  onAdd,
+  onClear,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
+}: Props) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -107,6 +123,22 @@ export function Toolbar({ children, running, onToggle, masterVolume, onMasterVol
       </div>
 
       <div className="relative ml-auto flex items-center gap-2">
+        <button
+          title="Undo (⌘Z or Ctrl+Z)"
+          disabled={!canUndo}
+          onClick={onUndo}
+          className="rounded-md bg-white/5 px-2 py-1.5 text-xs text-slate-300 hover:bg-white/10 disabled:cursor-default disabled:opacity-30"
+        >
+          Undo
+        </button>
+        <button
+          title="Redo (⌘⇧Z or Ctrl+Y)"
+          disabled={!canRedo}
+          onClick={onRedo}
+          className="rounded-md bg-white/5 px-2 py-1.5 text-xs text-slate-300 hover:bg-white/10 disabled:cursor-default disabled:opacity-30"
+        >
+          Redo
+        </button>
         <button
           title="Add a module to the canvas"
           onClick={() => setOpen((v) => !v)}

@@ -9,10 +9,12 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:pages": "tsc -b && VITE_BASE=/MaxPatcher/ vite build"
   },
   "dependencies": {
     "@xyflow/react": "^12.12.0",
+    "fflate": "^0.8.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "tone": "^15.1.22"

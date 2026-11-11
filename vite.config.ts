@@ -9,6 +9,9 @@ const root = dirname(fileURLToPath(import.meta.url))
 
 export default defineConfig({
   root,
+  // Pages is built with VITE_BASE=/MaxPatcher/. Local dev and the default
+  // production build keep serving at `/` so port 4319 is unchanged.
+  base: process.env.VITE_BASE || '/',
   plugins: [react(), tailwindcss()],
   server: {
     port: 4319,
