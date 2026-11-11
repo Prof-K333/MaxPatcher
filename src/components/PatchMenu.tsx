@@ -9,6 +9,7 @@ interface Props {
   onLoad: (name: string) => void
   onDelete: (name: string) => void
   onExport: () => void
+  onShare?: () => void
   onImport: (file: File) => void
   onLoadPreset: (name: string) => void
 }
@@ -22,7 +23,7 @@ const relative = (iso: string) => {
   return `${Math.floor(hours / 24)}d ago`
 }
 
-export function PatchMenu({ patchName, onNameChange, onSave, onLoad, onDelete, onExport, onImport, onLoadPreset }: Props) {
+export function PatchMenu({ patchName, onNameChange, onSave, onLoad, onDelete, onExport, onShare, onImport, onLoadPreset }: Props) {
   const [open, setOpen] = useState(false)
   const [slots, setSlots] = useState<SavedSlot[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
@@ -157,6 +158,18 @@ export function PatchMenu({ patchName, onNameChange, onSave, onLoad, onDelete, o
             >
               ⭳ Export JSON
             </button>
+            {onShare && (
+              <button
+                title="Copy a link that opens this patch"
+                onClick={() => {
+                  onShare()
+                  setOpen(false)
+                }}
+                className="flex-1 border-l border-white/5 px-3 py-2 text-xs text-slate-300 hover:bg-white/5"
+              >
+                Copy share link
+              </button>
+            )}
             <button
           title="Load a patch from a .json file"
               onClick={() => fileRef.current?.click()}

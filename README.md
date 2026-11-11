@@ -24,6 +24,14 @@ on a phone.
 Then open http://localhost:4319 and press **Start Audio** — browsers refuse to
 run an AudioContext until a user gesture, so nothing sounds before that.
 
+A hosted demo will be at https://prof-k333.github.io/MaxPatcher/ once GitHub
+Pages is enabled for this repository. That is a one-time repo setting: **Settings
+→ Pages → Source: GitHub Actions**. The deploy workflow builds with a `/MaxPatcher/`
+base on every push to `main` (and can be run by hand), but it cannot publish
+until that setting is on. Local `npm run dev` still serves at `/` on port 4319.
+Use `npm run build:pages` to make the same production build the workflow uses.
+The demo is not live until Pages is enabled.
+
 The starting patch has two halves: a playable voice on the left (keyboard →
 phrase looper → FM synth → filter) and a sequenced drum machine on the right
 (808 sequencer → TR-808, with the accent lane patched as CV). Both feed the
@@ -48,7 +56,9 @@ the top. The sequencer starts stopped, so Start Audio alone makes no noise.
 | `src/components/Piano.tsx` | The playable keyboard, shared by the node and the dock. |
 | `src/patch/format.ts` | Patch file format — serialize, and validate untrusted JSON on the way in. |
 | `src/patch/storage.ts` | localStorage autosave and named slots. |
-| `src/patch/presets.ts` | The six example patches. |
+| `src/patch/presets.ts` | The seven example patches. |
+| `src/patch/share.ts` | Compresses a patch into a shareable `#p=` URL hash. |
+| `src/patch/history.ts` | Snapshot undo/redo for patch state. |
 
 The React layer never touches Tone directly. It calls `engine.sync()` with the
 current nodes and edges, and the engine works out the difference — creating,
@@ -110,6 +120,25 @@ rather than a static buzz. Takes notes on `ev:note` and FM depth on `cv:fmDepth`
 Four outlets: `note` events for polyphony, plus `pitch`, `gate` and `velocity`
 signals for patching the old modular way. The signal outlets use last-note
 priority. Velocity follows how low on the key you click.
+
+**MIDI In** — plays from a Web MIDI keyboard or controller, and emits the same
+outlets as the Keyboard module (`ev:note`, plus pitch, gate and velocity).
+Press **Enable MIDI** on the node to request access, then pick a device and
+channel (`all` listens to every channel). If the browser has no Web MIDI API,
+or permission is denied, the node stays quiet and shows why — it never throws.
+
+**Envelope** — a standalone ADSR. Trigger it with note on/off or a bang on
+`ev:trig` (the same events a keyboard already sends) and patch the `env`
+outlet into a VCA's CV inlet, or into any other modulation input. This is the
+modular envelope; the FM synth still has its own built-in ADSR.
+
+**VCA** — a voltage-controlled amplifier: audio in, CV in, audio out. Bias is
+the resting gain and defaults to 0, so the VCA stays closed until an envelope
+(or other CV) opens it. An optional expo curve sits on the CV path.
+
+**Scope** — an oscilloscope and a simple spectrum analyser in the node body.
+Audio passes through, so it can sit in a chain. If audio is stopped or the
+analyser is not running, it draws a quiet trace rather than throwing.
 
 **Phrase Looper** — records incoming notes, snaps them to the clock and replays
 them on a seamless loop, with overdub and clear. Each recorded event gets its
@@ -308,7 +337,7 @@ toolbar slider and the Master Out node are two views of one value.
 
 ## Example patches
 
-**Patches → Example patches** loads six demos. Each one is a saved performance
+**Patches → Example patches** loads seven demos. Each one is a saved performance
 setup that wires modules together (they live in `src/patch/presets.ts` rather
 than as separate files on disk). They are built to show a different part of
 the app and to make sound as soon as they load:
@@ -321,6 +350,7 @@ the app and to make sound as soon as they load:
 | **Polymeter Clockwork** | Drum lanes of 16, 11, 7 and 5 drifting; the loop bang freezes a grain cloud. |
 | **Modulation Lab** | Two LFOs — one sweeping a filter, one scrubbing a grain cloud. |
 | **Arp Engine** | Hold a chord and the arpeggiator locks to the drum sequencer's clock. |
+| **Envelope VCA** | A classic modular voice: keyboard into an envelope, oscillator through a VCA. |
 
 808 Jam, Polymeter Clockwork and Modulation Lab play on their own once audio
 is running; Tape Loop Drone and Granular Shimmer are instruments, so play the
@@ -332,7 +362,20 @@ than loading a dead patch.
 
 The patch autosaves to `localStorage` about half a second after you stop
 editing, and is restored on the next visit — including node positions and the
-patch name. The **Patches** menu adds named slots, plus JSON export and import.
+patch name. The **Patches** menu adds named slots, plus JSON export and import,
+and a **Copy share link** button.
+
+A share link stores the current patch in the URL hash (`#p=…`), compressed so
+it needs no server. Opening that link loads the shared patch once (it wins
+over the autosave for that first load only); a broken or oversized hash falls
+back to the autosave or the default patch and shows a warning, the same way a
+bad import does. Edits after that still autosave as usual.
+
+Undo and redo cover patch state — nodes, cables, and the patch name. Use the
+toolbar buttons, or ⌘Z / Ctrl+Z to undo and ⌘⇧Z / Ctrl+Y to redo. Shortcuts are
+ignored while you are typing in a field. Dragging a node or a slider counts as
+one step, committed when you release, so the history does not fill up with
+every pointer move.
 
 Exported files look like this, and are the same shape as what is stored:
 

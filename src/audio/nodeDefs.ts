@@ -613,6 +613,80 @@ export const NODE_DEFS: Record<string, NodeDef> = Object.assign(Object.create(nu
     ],
   },
 
+
+  envelope: {
+    type: 'envelope',
+    icon: '凯西',
+    description: 'ADSR envelope. Trigger it with notes or a trig, and patch the CV into a VCA.',
+    label: 'Envelope',
+    category: 'modulator',
+    accent: '#c084fc',
+    inputs: [{ id: 'ev:trig', label: 'trig', kind: 'event' }],
+    outputs: [{ id: 'out', label: 'env', kind: 'audio' }],
+    params: [
+      { curve: 'log', key: 'attack', label: 'A', control: 'slider', min: 0.001, max: 2, step: 0.001, unit: 's', default: 0.01 },
+      { curve: 'log', key: 'decay', label: 'D', control: 'slider', min: 0.01, max: 3, step: 0.01, unit: 's', default: 0.2 },
+      { key: 'sustain', label: 'S', control: 'slider', min: 0, max: 1, step: 0.01, default: 0.7 },
+      { curve: 'log', key: 'release', label: 'R', control: 'slider', min: 0.01, max: 5, step: 0.01, unit: 's', default: 0.5 },
+    ],
+  },
+
+  vca: {
+    type: 'vca',
+    icon: '📶',
+    description: 'Voltage-controlled amplifier. Patch an envelope into CV to open it.',
+    label: 'VCA',
+    category: 'effect',
+    accent: '#22d3ee',
+    inputs: [
+      audioIn,
+      { id: 'cv:gain', label: 'cv', kind: 'cv' },
+    ],
+    outputs: [audioOut],
+    params: [
+      { key: 'bias', label: 'Bias', control: 'slider', min: 0, max: 2, step: 0.01, default: 0 },
+      { key: 'curve', label: 'Curve', control: 'select', options: ['linear', 'expo'], default: 'linear' },
+    ],
+  },
+
+  midiIn: {
+    type: 'midiIn',
+    icon: '🎚️',
+    description: 'Play from a MIDI keyboard or controller.',
+    label: 'MIDI In',
+    category: 'control',
+    accent: '#facc15',
+    width: 220,
+    ui: 'midiIn',
+    inputs: [],
+    outputs: [
+      { id: 'ev:note', label: 'note', kind: 'event' },
+      { id: 'pitch', label: 'pitch', kind: 'cv' },
+      { id: 'gate', label: 'gate', kind: 'cv' },
+      { id: 'velocity', label: 'vel', kind: 'cv' },
+    ],
+    params: [
+      { key: 'device', label: 'Device', control: 'text', maxLength: 128, default: '', hidden: true },
+      { key: 'channel', label: 'Channel', control: 'select', options: ['all','1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16'], default: 'all' },
+    ],
+  },
+
+  scope: {
+    type: 'scope',
+    icon: '📟',
+    description: 'Oscilloscope and spectrum analyser. Audio passes through.',
+    label: 'Scope',
+    category: 'effect',
+    accent: '#67e8f9',
+    width: 220,
+    ui: 'scope',
+    inputs: [audioIn],
+    outputs: [audioOut],
+    params: [
+      { key: 'mode', label: 'View', control: 'select', options: ['both', 'oscilloscope', 'spectrum'], default: 'both' },
+    ],
+  },
+
   destination: {
     type: 'destination',
     icon: '📢',

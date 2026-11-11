@@ -259,6 +259,30 @@ const arpEngine = () =>
     ],
   )
 
+
+// ---------------------------------------------------------------- 7. Envelope + VCA
+
+const envelopeVca = () =>
+  patch(
+    'Envelope VCA',
+    [
+      node('kbd', 'keyboard', 40, 40, { name: 'Play me', octave: 3 }),
+      node('osc', 'oscillator', 40, 360, { type: 'sawtooth', frequency: 110, volume: -8 }),
+      node('env', 'envelope', 380, 40, { attack: 0.01, decay: 0.25, sustain: 0.6, release: 0.8 }),
+      node('vca', 'vca', 380, 360, { bias: 0, curve: 'linear' }),
+      node('filt', 'filter', 380, 620, { frequency: 1800, Q: 4 }),
+      node('master', 'destination', 380, 920, { volume: -8 }),
+    ],
+    [
+      wire('kbd', 'ev:note', 'env', 'ev:trig'),
+      wire('kbd', 'pitch', 'osc', 'param:frequency'),
+      wire('osc', 'out', 'vca', 'in'),
+      wire('env', 'out', 'vca', 'cv:gain'),
+      wire('vca', 'out', 'filt', 'in'),
+      wire('filt', 'out', 'master', 'in'),
+    ],
+  )
+
 export interface Preset {
   name: string
   blurb: string
@@ -272,4 +296,5 @@ export const PRESETS: Preset[] = [
   { name: 'Polymeter Clockwork', blurb: 'Drum lanes of 16, 11, 7 and 5 drifting apart.', build: clockwork },
   { name: 'Modulation Lab', blurb: 'Two LFOs: one sweeps a filter, one scrubs a grain cloud.', build: modLab },
   { name: 'Arp Engine', blurb: 'Hold a chord and the arp plays it, locked to the drum clock.', build: arpEngine },
+  { name: 'Envelope VCA', blurb: 'A classic modular voice: keyboard, oscillator, envelope and VCA.', build: envelopeVca },
 ]
