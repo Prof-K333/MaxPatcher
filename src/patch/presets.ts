@@ -1,4 +1,5 @@
 import { MAX_STEPS, TRACKS, defaultBank, serializeBank, type StepLevel, type TrackId } from '../audio/sequencer/pattern'
+import { NOTE_STEPS, ROLL_ROWS, defaultSeqBank, emptySequence, serializeSeqBank } from '../audio/sequencer/noteSeq'
 import type { PatchFile, SerializedEdge, SerializedNode } from './format'
 import type { ParamValues } from '../audio/types'
 
@@ -57,6 +58,19 @@ function bankFrom(lanes: Partial<Record<TrackId, LaneSpec>>): string {
     if (spec.ratchet) for (const [step, r] of Object.entries(spec.ratchet)) track.ratchet[Number(step)] = r
   }
   return serializeBank(bank)
+}
+
+
+/** Builds an arp sequence bank from readable [step, semitone, accent?] triples. */
+function seqFrom(notes: Array<[number, number, boolean?]>, slot = 8): string {
+  const bank = defaultSeqBank()
+  const seq = emptySequence()
+  for (const [step, pitch, accent] of notes) {
+    if (step < NOTE_STEPS && pitch >= 0 && pitch < ROLL_ROWS) seq[step] = { pitch, accent: !!accent }
+  }
+  bank.sequences[slot] = seq
+  bank.current = slot
+  return serializeSeqBank(bank)
 }
 
 const patch = (name: string, nodes: SerializedNode[], edges: SerializedEdge[]): PatchFile => ({
@@ -283,6 +297,307 @@ const envelopeVca = () =>
     ],
   )
 
+// ---------------------------------------------- 8–15. Public-domain song hooks
+// Sixteen steps, pitches 0–12 above root. Traditional / public-domain works
+// only — not sound-alikes of copyrighted popular songs.
+
+const odeToJoy = () =>
+  patch(
+    'Ode to Joy',
+    [
+      node('arp', 'arp', 40, 40, {
+        mode: 'sequence',
+        rate: '1/4',
+        gate: 0.9,
+        bpm: 80,
+        root: 60,
+        running: 1,
+        steps: seqFrom([
+          [0, 4, true], [1, 4], [2, 5], [3, 7, true], [4, 7], [5, 5], [6, 4], [7, 2],
+          [8, 0, true], [9, 0], [10, 2], [11, 4], [12, 4], [13, 2], [14, 2],
+        ]),
+      }),
+      node('osc', 'oscillator', 40, 400, { type: 'triangle', frequency: 262, volume: -8 }),
+      node('env', 'envelope', 420, 40, { attack: 0.02, decay: 0.15, sustain: 0.85, release: 0.35 }),
+      node('vca', 'vca', 420, 400, { bias: 0, curve: 'linear' }),
+      node('verb', 'reverb', 420, 680, { decay: 4.5, wet: 0.4 }),
+      node('master', 'destination', 440, 980, { volume: -7 }),
+    ],
+    [
+      wire('arp', 'ev:note', 'env', 'ev:trig'),
+      wire('arp', 'pitch', 'osc', 'param:frequency'),
+      wire('osc', 'out', 'vca', 'in'),
+      wire('env', 'out', 'vca', 'cv:gain'),
+      wire('vca', 'out', 'verb', 'in'),
+      wire('verb', 'out', 'master', 'in'),
+    ],
+  )
+
+const fuerElise = () =>
+  patch(
+    'Für Elise',
+    [
+      node('arp', 'arp', 40, 40, {
+        mode: 'sequence',
+        rate: '1/16',
+        gate: 0.7,
+        bpm: 72,
+        root: 57,
+        running: 1,
+        steps: seqFrom([
+          [0, 7, true], [1, 6], [2, 7], [3, 6], [4, 7], [5, 2], [6, 5], [7, 3], [8, 0, true],
+          [11, 3], [12, 7], [13, 0], [14, 2],
+        ]),
+      }),
+      node('lead', 'fmsynth', 560, 40, { carrier: 'sine', harmonicity: 1, modulationIndex: 1.5, attack: 0.005, decay: 0.45, sustain: 0.15, release: 0.5, volume: -6 }),
+      node('delay', 'delay', 560, 420, { delayTime: 0.28, feedback: 0.25, wet: 0.22 }),
+      node('verb', 'reverb', 560, 700, { decay: 3.2, wet: 0.35 }),
+      node('master', 'destination', 580, 980, { volume: -8 }),
+    ],
+    [
+      wire('arp', 'ev:note', 'lead', 'ev:note'),
+      wire('lead', 'out', 'delay', 'in'),
+      wire('delay', 'out', 'verb', 'in'),
+      wire('verb', 'out', 'master', 'in'),
+    ],
+  )
+
+const twinkle = () =>
+  patch(
+    'Twinkle Twinkle Little Star',
+    [
+      node('arp', 'arp', 40, 40, {
+        mode: 'sequence',
+        rate: '1/4',
+        gate: 0.8,
+        bpm: 100,
+        root: 60,
+        running: 1,
+        steps: seqFrom([
+          [0, 0, true], [1, 0], [2, 7], [3, 7], [4, 9], [5, 9], [6, 7, true],
+          [8, 5], [9, 5], [10, 4], [11, 4], [12, 2], [13, 2], [14, 0, true],
+        ]),
+      }),
+      node('lead', 'fmsynth', 560, 40, { carrier: 'triangle', harmonicity: 2, modulationIndex: 0.8, attack: 0.01, decay: 0.2, sustain: 0.35, release: 0.25, volume: -7 }),
+      node('filt', 'filter', 560, 420, { frequency: 3200, Q: 2, type: 'lowpass' }),
+      node('verb', 'reverb', 560, 720, { decay: 2.2, wet: 0.25 }),
+      node('master', 'destination', 580, 1000, { volume: -8 }),
+    ],
+    [
+      wire('arp', 'ev:note', 'lead', 'ev:note'),
+      wire('lead', 'out', 'filt', 'in'),
+      wire('filt', 'out', 'verb', 'in'),
+      wire('verb', 'out', 'master', 'in'),
+    ],
+  )
+
+const entertainer = () =>
+  patch(
+    'The Entertainer',
+    [
+      node('arp', 'arp', 40, 40, {
+        mode: 'sequence',
+        rate: '1/16',
+        gate: 0.55,
+        bpm: 92,
+        swing: 0.54,
+        root: 62,
+        running: 1,
+        steps: seqFrom([
+          [0, 0], [1, 1], [2, 2, true], [3, 10], [5, 2], [6, 10], [8, 2], [9, 10],
+          [11, 0], [12, 1], [13, 2, true], [14, 10],
+        ]),
+      }),
+      node('lead', 'fmsynth', 560, 40, { carrier: 'sine', harmonicity: 2, modulationIndex: 3.5, attack: 0.002, decay: 0.28, sustain: 0.2, release: 0.18, volume: -6 }),
+      node('filt', 'filter', 560, 420, { frequency: 2600, Q: 3 }),
+      node('seq', 'drumSeq', 40, 400, {
+        bpm: 92,
+        swing: 0.54,
+        running: 1,
+        patterns: bankFrom({
+          bd: { on: [], accent: [0, 8] },
+          sd: { on: [], accent: [4, 12] },
+          ch: { on: [2, 6, 10, 14] },
+          acc: { on: [], accent: [0, 4, 8, 12] },
+        }),
+      }),
+      node('drums', 'drums808', 100, 760, { masterVolume: 0.7, level_ch: 0.25, level_sd: 0.7 }),
+      node('mix', 'mixer', 560, 760, { level1: 1, level2: 0.7 }),
+      node('master', 'destination', 580, 1060, { volume: -8 }),
+    ],
+    [
+      wire('seq', 'ev:clockOut', 'arp', 'ev:clock'),
+      wire('arp', 'ev:note', 'lead', 'ev:note'),
+      wire('lead', 'out', 'filt', 'in'),
+      wire('filt', 'out', 'mix', 'in1'),
+      ...drumCables('seq', 'drums'),
+      wire('drums', 'out', 'mix', 'in2'),
+      wire('mix', 'out', 'master', 'in'),
+    ],
+  )
+
+const mountainKing = () =>
+  patch(
+    'In the Hall of the Mountain King',
+    [
+      node('arp', 'arp', 40, 40, {
+        mode: 'sequence',
+        rate: '1/8',
+        gate: 0.35,
+        bpm: 108,
+        root: 47,
+        running: 1,
+        steps: seqFrom([
+          [0, 0, true], [1, 2], [2, 3], [3, 5], [4, 7, true], [5, 3], [6, 7],
+          [8, 6], [9, 2], [10, 6], [11, 5], [12, 1], [13, 5],
+        ]),
+      }),
+      node('lead', 'fmsynth', 560, 40, { carrier: 'square', harmonicity: 1, modulationIndex: 2.5, attack: 0.005, decay: 0.12, sustain: 0.15, release: 0.12, volume: -5 }),
+      node('filt', 'filter', 560, 420, { frequency: 700, Q: 7, type: 'lowpass', rolloff: '-24' }),
+      node('seq', 'drumSeq', 40, 400, {
+        bpm: 108,
+        running: 1,
+        patterns: bankFrom({
+          bd: { on: [], accent: [0, 8] },
+          cb: { on: [4, 12] },
+          acc: { on: [], accent: [0, 8] },
+        }),
+      }),
+      node('drums', 'drums808', 100, 760, { masterVolume: 0.65, level_cb: 0.35, level_bd: 0.85 }),
+      node('mix', 'mixer', 560, 760, { level1: 1, level2: 0.55 }),
+      node('master', 'destination', 580, 1060, { volume: -8 }),
+    ],
+    [
+      wire('seq', 'ev:clockOut', 'arp', 'ev:clock'),
+      wire('arp', 'ev:note', 'lead', 'ev:note'),
+      wire('lead', 'out', 'filt', 'in'),
+      wire('filt', 'out', 'mix', 'in1'),
+      ...drumCables('seq', 'drums'),
+      wire('drums', 'out', 'mix', 'in2'),
+      wire('mix', 'out', 'master', 'in'),
+    ],
+  )
+
+const saints = () =>
+  patch(
+    'When the Saints Go Marching In',
+    [
+      node('arp', 'arp', 40, 40, {
+        mode: 'sequence',
+        rate: '1/8',
+        gate: 0.65,
+        bpm: 116,
+        swing: 0.56,
+        root: 55,
+        running: 1,
+        steps: seqFrom([
+          [0, 0, true], [1, 4], [2, 5], [3, 7, true], [5, 0], [6, 4], [7, 5], [8, 7, true],
+          [10, 0], [11, 4], [12, 5], [13, 7], [14, 4], [15, 0],
+        ]),
+      }),
+      node('lead', 'fmsynth', 560, 40, { carrier: 'sawtooth', harmonicity: 2, modulationIndex: 6, attack: 0.01, decay: 0.22, sustain: 0.4, release: 0.28, volume: -6 }),
+      node('filt', 'filter', 560, 420, { frequency: 1800, Q: 4 }),
+      node('seq', 'drumSeq', 40, 400, {
+        bpm: 116,
+        swing: 0.56,
+        running: 1,
+        patterns: bankFrom({
+          bd: { on: [3, 10], accent: [0, 8] },
+          sd: { on: [], accent: [4, 12] },
+          ch: { on: [0, 2, 4, 6, 8, 10, 12, 14] },
+          oh: { on: [6, 14] },
+          cp: { on: [12] },
+          acc: { on: [], accent: [0, 4, 8, 12] },
+        }),
+      }),
+      node('drums', 'drums808', 100, 760, { masterVolume: 0.75, level_ch: 0.28, level_oh: 0.4, level_cp: 0.55 }),
+      node('mix', 'mixer', 560, 760, { level1: 0.95, level2: 0.8 }),
+      node('master', 'destination', 580, 1060, { volume: -8 }),
+    ],
+    [
+      wire('seq', 'ev:clockOut', 'arp', 'ev:clock'),
+      wire('arp', 'ev:note', 'lead', 'ev:note'),
+      wire('lead', 'out', 'filt', 'in'),
+      wire('filt', 'out', 'mix', 'in1'),
+      ...drumCables('seq', 'drums'),
+      wire('drums', 'out', 'mix', 'in2'),
+      wire('mix', 'out', 'master', 'in'),
+    ],
+  )
+
+const nachtmusik = () =>
+  patch(
+    'Eine kleine Nachtmusik',
+    [
+      node('arp', 'arp', 40, 40, {
+        mode: 'sequence',
+        rate: '1/16',
+        gate: 0.85,
+        bpm: 126,
+        root: 50,
+        running: 1,
+        steps: seqFrom([
+          [0, 5, true], [4, 0, true], [8, 5], [9, 0], [10, 5], [11, 9], [12, 12, true],
+        ]),
+      }),
+      node('lead', 'fmsynth', 560, 40, { carrier: 'sawtooth', harmonicity: 1, modulationIndex: 1.2, attack: 0.008, decay: 0.18, sustain: 0.55, release: 0.2, volume: -7 }),
+      node('filt', 'filter', 560, 420, { frequency: 2200, Q: 2.5 }),
+      node('verb', 'reverb', 560, 720, { decay: 2.8, wet: 0.32 }),
+      node('master', 'destination', 580, 1000, { volume: -8 }),
+    ],
+    [
+      wire('arp', 'ev:note', 'lead', 'ev:note'),
+      wire('lead', 'out', 'filt', 'in'),
+      wire('filt', 'out', 'verb', 'in'),
+      wire('verb', 'out', 'master', 'in'),
+    ],
+  )
+
+const jingleBells = () =>
+  patch(
+    'Jingle Bells',
+    [
+      node('arp', 'arp', 40, 40, {
+        mode: 'sequence',
+        rate: '1/8',
+        gate: 0.55,
+        bpm: 120,
+        root: 60,
+        running: 1,
+        steps: seqFrom([
+          [0, 4, true], [1, 4], [2, 4], [4, 4, true], [5, 4], [6, 4],
+          [8, 4], [9, 7], [10, 0, true], [11, 2], [12, 4, true],
+        ]),
+      }),
+      node('lead', 'fmsynth', 560, 40, { carrier: 'sine', harmonicity: 3, modulationIndex: 8, attack: 0.001, decay: 0.35, sustain: 0.1, release: 0.4, volume: -7 }),
+      node('delay', 'delay', 560, 420, { delayTime: 0.25, feedback: 0.2, wet: 0.18 }),
+      node('seq', 'drumSeq', 40, 400, {
+        bpm: 120,
+        running: 1,
+        patterns: bankFrom({
+          bd: { on: [], accent: [0, 8] },
+          cb: { on: [0, 2, 4, 6, 8, 10, 12, 14] },
+          ch: { on: [4, 12] },
+          acc: { on: [], accent: [0, 8] },
+        }),
+      }),
+      node('drums', 'drums808', 100, 760, { masterVolume: 0.6, level_cb: 0.45, level_ch: 0.2, level_bd: 0.55 }),
+      node('mix', 'mixer', 560, 760, { level1: 1, level2: 0.55 }),
+      node('verb', 'reverb', 860, 760, { decay: 2.5, wet: 0.3 }),
+      node('master', 'destination', 880, 1060, { volume: -8 }),
+    ],
+    [
+      wire('seq', 'ev:clockOut', 'arp', 'ev:clock'),
+      wire('arp', 'ev:note', 'lead', 'ev:note'),
+      wire('lead', 'out', 'delay', 'in'),
+      wire('delay', 'out', 'mix', 'in1'),
+      ...drumCables('seq', 'drums'),
+      wire('drums', 'out', 'mix', 'in2'),
+      wire('mix', 'out', 'verb', 'in'),
+      wire('verb', 'out', 'master', 'in'),
+    ],
+  )
+
 export interface Preset {
   name: string
   blurb: string
@@ -297,4 +612,12 @@ export const PRESETS: Preset[] = [
   { name: 'Modulation Lab', blurb: 'Two LFOs: one sweeps a filter, one scrubs a grain cloud.', build: modLab },
   { name: 'Arp Engine', blurb: 'Hold a chord and the arp plays it, locked to the drum clock.', build: arpEngine },
   { name: 'Envelope VCA', blurb: 'A classic modular voice: keyboard, oscillator, envelope and VCA.', build: envelopeVca },
+  { name: 'Ode to Joy', blurb: "Beethoven's hymn theme from the Ninth Symphony.", build: odeToJoy },
+  { name: 'Für Elise', blurb: "Beethoven's famous E–D♯–E opening.", build: fuerElise },
+  { name: 'Twinkle Twinkle Little Star', blurb: 'The traditional English nursery song.', build: twinkle },
+  { name: 'The Entertainer', blurb: "Scott Joplin's 1902 ragtime hook (public domain).", build: entertainer },
+  { name: 'In the Hall of the Mountain King', blurb: "Grieg's creeping theme from Peer Gynt.", build: mountainKing },
+  { name: 'When the Saints Go Marching In', blurb: 'The traditional New Orleans spiritual.', build: saints },
+  { name: 'Eine kleine Nachtmusik', blurb: "Mozart's opening fanfare from the 1787 serenade.", build: nachtmusik },
+  { name: 'Jingle Bells', blurb: "James Pierpont's 1857 holiday song (public domain).", build: jingleBells },
 ]
