@@ -56,7 +56,7 @@ the top. The sequencer starts stopped, so Start Audio alone makes no noise.
 | `src/components/Piano.tsx` | The playable keyboard, shared by the node and the dock. |
 | `src/patch/format.ts` | Patch file format — serialize, and validate untrusted JSON on the way in. |
 | `src/patch/storage.ts` | localStorage autosave and named slots. |
-| `src/patch/presets.ts` | The seven example patches. |
+| `src/patch/presets.ts` | The fifteen example patches (seven demos and eight public-domain song hooks). |
 | `src/patch/share.ts` | Compresses a patch into a shareable `#p=` URL hash. |
 | `src/patch/history.ts` | Snapshot undo/redo for patch state. |
 
@@ -337,10 +337,11 @@ toolbar slider and the Master Out node are two views of one value.
 
 ## Example patches
 
-**Patches → Example patches** loads seven demos. Each one is a saved performance
-setup that wires modules together (they live in `src/patch/presets.ts` rather
-than as separate files on disk). They are built to show a different part of
-the app and to make sound as soon as they load:
+**Patches → Example patches** loads fifteen patches: seven module demos and
+eight public-domain song hooks. Each one is a saved performance setup that
+wires modules together (they live in `src/patch/presets.ts` rather than as
+separate files on disk). They are built to show a different part of the app
+and to make sound as soon as they load:
 
 | Patch | Shows |
 | --- | --- |
@@ -351,12 +352,20 @@ the app and to make sound as soon as they load:
 | **Modulation Lab** | Two LFOs — one sweeping a filter, one scrubbing a grain cloud. |
 | **Arp Engine** | Hold a chord and the arpeggiator locks to the drum sequencer's clock. |
 | **Envelope VCA** | A classic modular voice: keyboard into an envelope, oscillator through a VCA. |
+| **Ode to Joy** | Beethoven's hymn theme from the Ninth Symphony, as a sequenced voice. |
+| **Für Elise** | Beethoven's famous E–D♯–E opening, played by the arp in sequence mode. |
+| **Twinkle Twinkle Little Star** | The traditional English nursery song. |
+| **The Entertainer** | Scott Joplin's 1902 ragtime hook (public domain), with a light 808 beat. |
+| **In the Hall of the Mountain King** | Grieg's creeping theme from *Peer Gynt*. |
+| **When the Saints Go Marching In** | The traditional New Orleans spiritual, with a swung drum pattern. |
+| **Eine kleine Nachtmusik** | Mozart's opening fanfare from the 1787 serenade. |
+| **Jingle Bells** | James Pierpont's 1857 holiday song (public domain), with cowbell. |
 
-808 Jam, Polymeter Clockwork and Modulation Lab play on their own once audio
-is running; Tape Loop Drone and Granular Shimmer are instruments, so play the
-keyboard. Presets are built as ordinary patch files and go through the same
-validation as an imported one, so a broken preset surfaces a warning rather
-than loading a dead patch.
+808 Jam, Polymeter Clockwork, Modulation Lab and the eight song hooks play on
+their own once audio is running; Tape Loop Drone and Granular Shimmer are
+instruments, so play the keyboard. Presets are built as ordinary patch files
+and go through the same validation as an imported one, so a broken preset
+surfaces a warning rather than loading a dead patch.
 
 ## Saving patches
 
