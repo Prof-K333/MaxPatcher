@@ -24,13 +24,12 @@ on a phone.
 Then open http://localhost:4319 and press **Start Audio** — browsers refuse to
 run an AudioContext until a user gesture, so nothing sounds before that.
 
-A hosted demo will be at https://prof-k333.github.io/MaxPatcher/ once GitHub
-Pages is enabled for this repository. That is a one-time repo setting: **Settings
-→ Pages → Source: GitHub Actions**. The deploy workflow builds with a `/MaxPatcher/`
-base on every push to `main` (and can be run by hand), but it cannot publish
-until that setting is on. Local `npm run dev` still serves at `/` on port 4319.
-Use `npm run build:pages` to make the same production build the workflow uses.
-The demo is not live until Pages is enabled.
+A live demo is at https://prof-k333.github.io/MaxPatcher/. Click **Start Audio**
+after it loads. The deploy workflow builds with a `/MaxPatcher/` base on every
+push to `main`. Local `npm run dev` still serves at `/` on port 4319. Use
+`npm run build:pages` to make the same production build the workflow uses.
+
+![The starting patch on the canvas: a playable keyboard voice on the left and an 808 drum machine on the right, both feeding Master Out.](docs/images/starting-patch.png)
 
 The starting patch has two halves: a playable voice on the left (keyboard →
 phrase looper → FM synth → filter) and a sequenced drum machine on the right
@@ -48,7 +47,7 @@ the top. The sequencer starts stopped, so Start Audio alone makes no noise.
 | `src/App.tsx` | React Flow canvas; calls `engine.sync(nodes, edges)` whenever either changes. |
 | `src/audio/NodeImpl.ts` | The face every node presents to the engine. |
 | `src/audio/factory.ts` | Builds the implementation behind each node type. |
-| `src/audio/nodes/` | Custom nodes: FM synth, keyboard, sampler, looper, granular. |
+| `src/audio/nodes/` | Custom node implementations: FM synth, keyboard, sampler, loopers, granular, 808, mixers, and the rest. |
 | `src/audio/granular/` | Grain scheduler, windows, transient slicing, default buffer. |
 | `src/audio/drums/` | The 808 engine, per-voice mixer buses and the ramp helper. |
 | `src/audio/sequencer/` | The lookahead clock and the pattern model. |
@@ -101,6 +100,8 @@ carries a `title` tooltip explaining its function.
 A node type's `icon` and `description` live in its registry entry, so a new
 module appears in the palette fully described without touching the palette.
 
+![The Add Node palette, grouped into Sources, Shaping and Control, with a short legend for port colours.](docs/images/add-node-palette.png)
+
 ### Adding a node type
 
 Add an entry to `NODE_DEFS` and a `case` to `createNode()` in `factory.ts`. The
@@ -109,6 +110,13 @@ automatically. A node that needs more than sliders sets `ui: '<name>'` on its
 definition and registers a component in `NODE_UI` in `PatchNode.tsx`.
 
 ## The nodes
+
+**Oscillator** — a raw tone generator: sine, triangle, sawtooth or square, with
+frequency, detune and level. Frequency and detune have modulation inlets, so an
+LFO or envelope can sweep the pitch.
+
+**Noise** — white, pink or brown noise, for percussion, texture, or anything
+that needs a hiss. Level only; there is no pitch to modulate.
 
 **FM Synth** — Chowning FM on `Tone.PolySynth`: a modulator at a fixed ratio
 (harmonicity) deviating a carrier, with the depth set by the modulation index.
@@ -180,6 +188,29 @@ Web Audio already sums anything patched into one input, so a mixer is not what
 fighting at full volume. A channel strip lights up when something is patched
 into it, so it doubles as a readout of what is feeding the mix.
 
+**Performance Mixer** — a six-channel console: trim, pre- or post-fader Aux A/B
+sends, pan, mute/solo, logarithmic faders and LED meters. Channels sum with the
+two aux returns into a stereo master (`Mst L` / `Mst R`). Patch Aux A or Aux B
+through an effect and back into `RetA` / `RetB`. Each strip also has a direct
+outlet (`D1`–`D6`) after the fader. Unlike the four-channel Mixer, this one does
+not rename strips after what is patched in; you can type a short label on each
+channel.
+
+**Bus Compressor** — a bus glue compressor, or a sidechain ducker. *Bus* mode
+uses the browser's `DynamicsCompressorNode`. That node has no external key
+input, so *duck* mode builds its own: the SC inlet is optionally high-passed,
+then a worklet follows the envelope and ducks the main path sample-accurately.
+Until the worklet has loaded, ducking leaves the gain at 1, so audio still
+passes. Listen SC lets you hear the sidechain; a Gain Reduction CV outlet can
+drive something else. Threshold also has a CV inlet.
+
+**Spatial FX Pro** — ping-pong or tape delay and a plate reverb in one unit,
+stereo, switchable between parallel and series. Series feeds the echoes into
+the reverb as well as the dry signal; parallel feeds the reverb the dry signal
+only. Delay time can follow an incoming clock (with a note-value division) or a
+Time CV; Size CV modulates the reverb. Feedback goes up to 110%, and Freeze
+holds the reverb tail.
+
 **Filter** — `Tone.Filter` wraps `BiquadFilterNode`: lowpass/highpass/bandpass/
 notch, cutoff, resonance, slope (−12/−24/−48 dB per octave) and a cutoff
 modulation inlet.
@@ -193,6 +224,29 @@ defaulting to ±2400 (two octaves).
 
 A filter sweep also needs something to chew on. A lowpass over a near-sine does
 almost nothing, so the FM synth's carrier defaults to a sawtooth.
+
+**Gain** — turns a signal up or down (0–2, default 0.8). The gain inlet accepts
+audio-rate modulation, which is the simple version of what the VCA does with a
+dedicated CV inlet and a bias.
+
+**Delay** — repeating echoes with time, feedback (capped at 0.95 so it cannot
+run away) and a wet/dry mix. For ping-pong, tape wow and a plate in one unit,
+see Spatial FX Pro.
+
+**Reverb** — puts the sound in a room. Decay sets how long the tail lasts; mix
+is wet/dry.
+
+**LFO** — a slow (or not-so-slow) wave for modulating other knobs. Patch its
+`mod` outlet into a violet modulation inlet; the receiving node's depth control
+then sets how far the target swings. It is a bipolar −1…+1 source — see Live
+parameter changes below. Rate runs from 0.02 Hz up to 20 kHz, so the same node
+can do audio-rate FM.
+
+**Master Out** — where the sound leaves for your speakers. It is already on the
+starting canvas and is kept out of the Add Node palette, because a second one
+is not how you get a second output. Volume is the same value as the toolbar
+Master slider (−60 to +6 dB). It has no outlets. Recording is built in — see
+Recording below.
 
 ## Live parameter changes
 
@@ -336,6 +390,8 @@ costs no CPU. Master volume is the `destination` node's `volume` param, so the
 toolbar slider and the Master Out node are two views of one value.
 
 ## Example patches
+
+![The Patches menu open on Example patches, listing the seven module demos and the eight public-domain song hooks.](docs/images/example-patches.png)
 
 **Patches → Example patches** loads fifteen patches: seven module demos and
 eight public-domain song hooks. Each one is a saved performance setup that
@@ -541,6 +597,8 @@ of a ring would be stale the moment it was made.
   node disconnected, or the processor keeps running and holding its buffers.
 
 ## 808 Sequencer
+
+![The 808 Sequencer and TR-808 Drums modules from the starting patch, with trigger and accent cables already patched.](docs/images/808-sequencer.png)
 
 Seven lanes — BD, SD, CP, CH, OH, CB and an accent lane — built to drive the
 808 over event cables.
