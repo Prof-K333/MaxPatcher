@@ -1,6 +1,7 @@
 import type { Edge, Node } from '@xyflow/react'
 import { NODE_DEFS, defaultParams } from '../audio/nodeDefs'
 import type { ParamValues, PatchNodeData } from '../audio/types'
+import { SONG_FORMAT, expandSong, isSongFile } from './song'
 
 export const PATCH_VERSION = 1
 
@@ -92,8 +93,18 @@ export class PatchParseError extends Error {}
 export function deserialize(input: unknown): { name: string; nodes: PNode[]; edges: Edge[]; warnings: string[] } {
   if (typeof input !== 'object' || input === null) throw new PatchParseError('File is not a patch object.')
 
+  if (isSongFile(input)) {
+    const song = expandSong(input)
+    const result = deserialize(song.patch)
+    return { ...result, warnings: [...song.warnings, ...result.warnings] }
+  }
+
   const file = input as Partial<PatchFile>
-  if (file.format !== 'patcher') throw new PatchParseError('Not a Patcher file (missing "format": "patcher").')
+  if (file.format !== 'patcher') {
+    throw new PatchParseError(
+      `Not a Patcher file (missing "format": "patcher"). To describe a song in plain fields, use "format": "${SONG_FORMAT}".`,
+    )
+  }
   if (!Array.isArray(file.nodes)) throw new PatchParseError('Patch has no nodes array.')
   if (typeof file.version === 'number' && file.version > PATCH_VERSION) {
     throw new PatchParseError(`Patch version ${file.version} is newer than this app understands (${PATCH_VERSION}).`)

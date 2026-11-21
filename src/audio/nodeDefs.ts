@@ -568,7 +568,7 @@ export const NODE_DEFS: Record<string, NodeDef> = Object.assign(Object.create(nu
       { key: 'swing', label: 'Swing', control: 'slider', min: 0.5, max: 0.75, step: 0.005, default: 0.5, hidden: true },
       { key: 'running', label: 'Run', control: 'toggle', default: 0, hidden: true },
       // The whole pattern bank travels with the patch as compact JSON.
-      { key: 'patterns', label: 'Patterns', control: 'text', maxLength: 60000, default: '', hidden: true },
+      { key: 'patterns', label: 'Patterns', control: 'text', maxLength: 100000, default: '', hidden: true },
       { key: 'mod_swing', label: 'swing depth', control: 'slider', min: -1, max: 1, step: 0.01, default: 1, hidden: true },
     ],
   },
@@ -604,15 +604,36 @@ export const NODE_DEFS: Record<string, NodeDef> = Object.assign(Object.create(nu
       { key: 'transpose', label: 'Transpose', control: 'slider', min: -24, max: 24, step: 1, unit: 'st', default: 0 },
       { key: 'bpm', label: 'BPM', control: 'slider', min: 40, max: 260, step: 0.1, default: 120, hidden: true },
       { key: 'swing', label: 'Swing', control: 'slider', min: 0.5, max: 0.75, step: 0.005, default: 0.5, hidden: true },
-      { key: 'length', label: 'Steps', control: 'slider', min: 1, max: 16, step: 1, default: 16, hidden: true },
+      { key: 'length', label: 'Steps', control: 'slider', min: 1, max: 128, step: 1, default: 16, hidden: true },
       { key: 'root', label: 'Root', control: 'slider', min: 24, max: 72, step: 1, default: 48, hidden: true },
       { key: 'hold', label: 'Hold', control: 'toggle', default: 0, hidden: true },
       { key: 'running', label: 'Run', control: 'toggle', default: 0, hidden: true },
-      { key: 'steps', label: 'Steps', control: 'text', maxLength: 8000, default: '', hidden: true },
+      { key: 'steps', label: 'Steps', control: 'text', maxLength: 200000, default: '', hidden: true },
       { key: 'mod_transpose', label: 'transpose depth', control: 'slider', min: -1, max: 1, step: 0.01, default: 1, hidden: true },
     ],
   },
 
+
+
+  vocalSynth: {
+    type: 'vocalSynth',
+    icon: '🎤',
+    description: 'A singer: notes in, voice out. Patch a keyboard or sequencer into it, then into the mixer.',
+    label: 'Vocal Synth',
+    category: 'voice',
+    accent: '#f472b6',
+    width: 280,
+    ui: 'vocalSynth',
+    inputs: [{ id: 'ev:note', label: 'note', kind: 'event' }],
+    outputs: [audioOut],
+    params: [
+      { key: 'body', label: 'Body', control: 'select', options: ['male', 'female', 'child'], default: 'female', hidden: true },
+      { key: 'vowel', label: 'Vowel', control: 'select', options: ['ah', 'ee', 'oo', 'oh', 'eh', 'ih', 'uh'], default: 'ah', hidden: true },
+      { key: 'breath', label: 'Breath', control: 'slider', min: 0, max: 1, step: 0.01, default: 0.75, hidden: true },
+      { key: 'volume', label: 'Level', control: 'slider', min: -40, max: 0, step: 1, unit: 'dB', default: -8 },
+      { key: 'lyrics', label: 'Lyrics', control: 'text', maxLength: 16000, default: '', hidden: true },
+    ],
+  },
 
   envelope: {
     type: 'envelope',

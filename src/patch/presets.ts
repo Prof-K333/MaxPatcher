@@ -2,6 +2,7 @@ import { MAX_STEPS, TRACKS, defaultBank, serializeBank, type StepLevel, type Tra
 import { NOTE_STEPS, ROLL_ROWS, defaultSeqBank, emptySequence, serializeSeqBank } from '../audio/sequencer/noteSeq'
 import type { PatchFile, SerializedEdge, SerializedNode } from './format'
 import type { ParamValues } from '../audio/types'
+import { expandSong, type SongFile } from './song'
 
 /**
  * Demo patches.
@@ -604,6 +605,39 @@ export interface Preset {
   build: () => PatchFile
 }
 
+
+const rowYourBoatSong: SongFile = {
+  format: 'patcher-song',
+  version: 1,
+  name: 'Row, Row, Row Your Boat',
+  bpm: 108,
+  key: 'C',
+  root: 'C4',
+  lyrics:
+    'Row, row, row your boat gently down the stream. Merrily, merrily, merrily, merrily, life is but a dream.',
+  voice: { body: 'female', vowel: 'ah', breath: 0.72 },
+  bars: [
+    { notes: 'C4 . C4 . C4 . D4 . E4 . . . E4 . D4 . E4 .', lyrics: 'Row row row your boat gent-ly down the' },
+    { notes: 'F4 . . . G4 . . . . . . . . . . .', lyrics: 'stream' },
+    { notes: 'C5 C5 C5 G4 G4 G4 E4 E4 E4 C4 C4 C4 . . . .', lyrics: 'Mer-ri-ly mer-ri-ly mer-ri-ly mer-ri-ly' },
+    { notes: 'G4 . F4 . E4 . D4 . C4 . . . . . . .', lyrics: 'life is but a dream' },
+  ],
+  arrangement: [0, 1, 2, 3],
+  loopBars: 64,
+  drums: {
+    presets: ['Four on the floor', 'House', 'Clave', 'Half time'],
+    order: [0, 1, 2, 3],
+    bars: 64,
+  },
+  instruments: {
+    keys: { name: 'Sing along', octave: 4 },
+    pad: { wave: 'triangle', cutoff: 700 },
+    fx: ['reverb'],
+  },
+}
+
+const rowYourBoat = () => expandSong(rowYourBoatSong).patch
+
 export const PRESETS: Preset[] = [
   { name: 'Tape Loop Drone', blurb: 'Play into a tape loop that feeds a delay and itself.', build: tapeLoop },
   { name: 'Granular Shimmer', blurb: 'A lead synth granulated an octave up into reverb.', build: shimmer },
@@ -620,4 +654,5 @@ export const PRESETS: Preset[] = [
   { name: 'When the Saints Go Marching In', blurb: 'The traditional New Orleans spiritual.', build: saints },
   { name: 'Eine kleine Nachtmusik', blurb: "Mozart's opening fanfare from the 1787 serenade.", build: nachtmusik },
   { name: 'Jingle Bells', blurb: "James Pierpont's 1857 holiday song (public domain).", build: jingleBells },
+  { name: 'Row, Row, Row Your Boat', blurb: 'A sung public-domain hook, built from song JSON.', build: rowYourBoat },
 ]

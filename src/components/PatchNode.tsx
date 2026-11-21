@@ -15,6 +15,7 @@ import { PerformanceMixerUI } from './nodeui/PerformanceMixerUI'
 import { LiveLooperUI } from './nodeui/LiveLooperUI'
 import { DrumSeqUI } from './nodeui/DrumSeqUI'
 import { ArpUI } from './nodeui/ArpUI'
+import { VocalSynthUI } from './nodeui/VocalSynthUI'
 import { MasterUI } from './nodeui/MasterUI'
 import { MidiInUI } from './nodeui/MidiInUI'
 import { ScopeUI } from './nodeui/ScopeUI'
@@ -36,6 +37,7 @@ const NODE_UI: Record<string, ComponentType<NodeUIProps>> = {
   liveLooper: LiveLooperUI,
   drumSeq: DrumSeqUI,
   arp: ArpUI,
+  vocalSynth: VocalSynthUI,
   master: MasterUI,
   midiIn: MidiInUI,
   scope: ScopeUI,

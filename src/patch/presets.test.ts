@@ -11,6 +11,7 @@ const SONG_PRESETS = [
   'When the Saints Go Marching In',
   'Eine kleine Nachtmusik',
   'Jingle Bells',
+  'Row, Row, Row Your Boat',
 ] as const
 
 const DEMO_PRESETS = [
@@ -34,7 +35,7 @@ describe('PRESETS', () => {
     }
   })
 
-  it('keeps the original demos and lists the eight public-domain songs', () => {
+  it('keeps the original demos and lists the nine public-domain songs', () => {
     const names = PRESETS.map((p) => p.name)
     expect(names.slice(0, DEMO_PRESETS.length)).toEqual([...DEMO_PRESETS])
     expect(names).toEqual(expect.arrayContaining([...SONG_PRESETS]))

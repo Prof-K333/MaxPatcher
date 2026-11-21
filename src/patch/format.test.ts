@@ -198,4 +198,24 @@ describe('deserialize', () => {
     expect(again.edges).toEqual(loaded.edges)
     expect(again.warnings).toEqual([])
   })
+
+  it('preserves Vocal Synth lyrics and a long sequencer bank', () => {
+    const lyrics = 'Twinkle twinkle little star. ' + 'la '.repeat(200)
+    const steps = 'x'.repeat(12000)
+    const result = deserialize({
+      format: 'patcher',
+      version: 1,
+      name: 'Singer',
+      nodes: [
+        { id: 'v', type: 'vocalSynth', params: { lyrics, body: 'male' } },
+        { id: 'a', type: 'arp', params: { steps, length: 64 } },
+        { id: 'master', type: 'destination', params: {} },
+      ],
+    })
+    expect(result.warnings).toEqual([])
+    expect(result.nodes[0].data.params.lyrics).toBe(lyrics)
+    expect(result.nodes[0].data.params.body).toBe('male')
+    expect(String(result.nodes[1].data.params.steps).length).toBe(12000)
+    expect(result.nodes[1].data.params.length).toBe(64)
+  })
 })
