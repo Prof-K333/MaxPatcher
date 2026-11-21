@@ -11,7 +11,7 @@ Import accepts both. File import, share links, and `deserialize()` all go throug
 
 ## A short example
 
-Complete files live in [`examples/row-your-boat.song.json`](./examples/row-your-boat.song.json) and [`examples/yankee-doodle.song.json`](./examples/yankee-doodle.song.json) (a 64-bar memory-chain march). The first is a public-domain nursery song. A compact shape looks like this:
+Complete files live in [`examples/row-your-boat.song.json`](./examples/row-your-boat.song.json), [`examples/yankee-doodle.song.json`](./examples/yankee-doodle.song.json) (a 64-bar memory-chain march), and [`examples/twinkle-twinkle.song.json`](./examples/twinkle-twinkle.song.json) (a 64-bar sung nursery song with a lead and drums). The first is a public-domain nursery song. A compact shape looks like this:
 
 ```json
 {
@@ -21,11 +21,12 @@ Complete files live in [`examples/row-your-boat.song.json`](./examples/row-your-
   "bpm": 108,
   "key": "C",
   "root": "C4",
+  "rate": "1/8",
   "lyrics": "Row, row, row your boat gently down the stream.",
   "voice": { "body": "female", "vowel": "ah", "breath": 0.72 },
   "bars": [
-    { "notes": "C4 C4 C4 D4 E4", "lyrics": "Row row row your boat" },
-    { "notes": "E4 D4 E4 F4 G4", "lyrics": "gent-ly down the stream" }
+    { "notes": "C4 C4 C4 D4 E4 . . .", "lyrics": "Row row row your boat" },
+    { "notes": "E4 D4 E4 F4 G4 . . .", "lyrics": "gent-ly down the stream" }
   ],
   "arrangement": [0, 1],
   "loopBars": 64,
@@ -35,13 +36,14 @@ Complete files live in [`examples/row-your-boat.song.json`](./examples/row-your-
     "bars": 64
   },
   "instruments": {
-    "pad": { "wave": "sawtooth", "cutoff": 900 },
     "fx": ["reverb"]
   }
 }
 ```
 
-Notes are readable names (`C4`, `F#3`, `Bb4`). A rest is `.`, `rest`, or `-`. Add `!` for an accent (`E4!`). Each melody slot is one 16-beat bar by default (you can pass more notes, up to 128 steps). The 16-beat grid in the UI does not grow; long forms come from **chaining memory slots**.
+Notes are readable names (`C4`, `F#3`, `Bb4`). A rest is `.`, `rest`, or `-`. Add `!` for an accent (`E4!`). Set `"rate"` to `"1/8"` for sung eighth notes (one syllable per eighth, long enough for the Vocal Synth). The default rate is `"1/16"`. Each melody slot is one bar at that rate by default — 8 steps at `1/8`, 16 at `1/16` — and you can pass more notes, up to 128 steps, or set `"length"` on a bar. The 16-beat grid in the UI does not grow; long forms come from **chaining memory slots**.
+
+Do not use `instruments.pad` as a drop-in pad. Import will not add a free-running oscillator: a bare oscillator starts on Start Audio and holds a tone with no envelope, which is a drone. If you want a pad, patch an oscillator through an envelope and a VCA in `extras`, or add it by hand in the UI.
 
 ## 64-bar and 128-bar loops
 
@@ -64,10 +66,11 @@ If `order` is missing and you only asked for a loop length, import fills the cha
 | `root` | no | Sequence root as a note name, like `"C3"` or `"C4"`. The piano roll is one octave above this root. |
 | `lyrics` | no | Plain text. Copied onto the Vocal Synth, and onto melody slot 1 if that slot has no words of its own. Empty lyrics: the singer holds the default vowel (`ah`). |
 | `voice` | no | `{ body, vowel, breath, volume }`. `body` is `"male"`, `"female"` (default), or `"child"`. `vowel` is `ah`, `ee`, `oo`, `oh`, `eh`, `ih`, or `uh`. |
-| `bars` | no | Melody slots: an array of `{ notes, lyrics?, length? }`, or an array of note strings. |
+| `bars` | no | Melody slots: an array of `{ notes, lyrics?, length? }`, or an array of note strings. Write one token per sequencer step at the chosen `rate` (e.g. `G4 G4 A4 B4 G4 B4 A4 D5` at `1/8`). |
 | `melody` | no | `{ slots, order, bars / loopBars }` if you want the chain spelled out. `melody.bars` may be the slot list *or* the loop length; `loopBars` is always the loop length. |
 | `arrangement` | no | Melody memory chain, e.g. `[0, 0, 1, 2]`. |
 | `loopBars` | no | Melody loop length in bars, typically `64` or `128`. |
+| `rate` | no | Melody sequencer rate: `"1/4"`, `"1/8"`, `"1/16"`, `"1/8T"`, or `"1/16T"`. Default `"1/16"`. Use `"1/8"` for sung melody so each syllable lasts an eighth note. May also be set on `melody.rate`. |
 | `drums` | no | `true`, or `{ presets, pattern, order, bars / loopBars, swing, volume }`. Preset names are the shipped beats: `"Four on the floor"`, `"Boom bap"`, `"Trap"`, `"House"`, `"Breakbeat"`, `"Electro"`, `"Half time"`, `"Clave"`. Indices work too. |
 | `instruments` | no | Other voices and routing. See below. |
 
@@ -80,8 +83,8 @@ Invent something. The defaults are only a starting point.
 | `keys` | A Keyboard node. Default is on; set `false` to omit it. `{ name, octave }` is allowed. |
 | `drums` | Same shape as top-level `drums` (top-level wins if both are present). An 808 Sequencer and a TR-808, chained if you gave an order. |
 | `bass` | An FM bass (or `{ type: "oscillator" }`). Pass `notes` and a second sequencer plays that line. |
-| `pad` | A held oscillator through a filter. `{ wave, cutoff, volume }`. |
-| `lead` | Another FM (or oscillator) voice, driven by the melody sequencer or the keyboard. |
+| `pad` | **Not a drop-in instrument.** A bare oscillator would drone for the whole song, so import skips this field and warns. Build a real pad with `extras` (oscillator into an envelope and VCA), or patch it in the UI. |
+| `lead` | Another FM (or oscillator) voice, driven by the melody sequencer or the keyboard. `{ type, wave, volume }`. |
 | `fx` | An array such as `["reverb", "delay", "filter", "spatial"]`, or an object `{ reverb: true, delay: true }`. Unknown names warn and are skipped. |
 | `mixer` | `"mixer"` (four channels, the default when there is more than one source), `"performanceMixer"`, or `false`. |
 | `extras` | An open list of official node types: `{ type, id?, params?, to? }`. Unknown types warn and are skipped. This is the hook for unusual configurations. |
@@ -104,9 +107,11 @@ Required:
 - "voice": { "body": "male" | "female" | "child", "vowel": "ah"|"ee"|"oo"|"oh"|"eh"|"ih"|"uh", "breath": 0..1 }
 
 Melody:
+- "rate": "1/8" for sung parts (preferred). Default is "1/16", which is usually too short for the Vocal Synth.
 - "bars": an array of { "notes": "C4 E4 G4 . A4 ...", "lyrics": "optional syllables for this bar" }
   Notes are scientific pitch names. A rest is "." or "rest". Accent a note with "!".
-  Each bar is 16 sixteenth notes unless you set "length".
+  Write one token per step at the chosen rate. At "1/8", one bar is 8 eighth notes
+  unless you set "length". Do not write eighth notes as "G4 . G4 ." on a 16th grid.
 - "arrangement": which bar slots play, in order, e.g. [0, 0, 1, 2]
 - "loopBars": 64 or 128 (an 8-slot chain repeated 8 times is 64 bars; repeated 16 times is 128)
 
@@ -121,14 +126,15 @@ Instruments — invent a unique configuration, not only singer + drums. Choose f
 - "instruments": {
     "keys": { "octave": 4 },
     "bass": { "type": "fmsynth" | "oscillator", "notes": "C2 G2 C2 E2", "wave": "sine" },
-    "pad": { "wave": "sawtooth"|"triangle"|"square"|"sine", "cutoff": 200-4000 },
-    "lead": { "type": "fmsynth" | "oscillator" },
+    "lead": { "type": "fmsynth" | "oscillator", "wave": "sawtooth"|"triangle"|"square"|"sine" },
     "fx": ["reverb", "delay", "filter", "spatial"],
     "mixer": "mixer" | "performanceMixer" | false,
     "extras": [{ "type": "<any official MaxPatcher node type>", "params": {}, "to": "mix" }]
   }
 
-Prefer unusual, musical combinations (a granular cloud on the pad, a tape looper in the extras, a sidechain compressor, a filter swept by an LFO in extras, etc.) when they serve the song. If a type or preset is unknown it will be skipped with a warning, so stay within real node types and the drum names listed above.
+Do not set "pad". A free-running oscillator has no envelope, so it would drone for the whole song; import skips it and warns. If you want a pad, put an oscillator, envelope, and VCA in extras and cable them, or add them in the UI after import.
+
+Prefer unusual, musical combinations (a tape looper in the extras, a sidechain compressor, a filter swept by an LFO in extras, a granular cloud, etc.) when they serve the song. If a type or preset is unknown it will be skipped with a warning, so stay within real node types and the drum names listed above.
 
 Here are the lyrics:
 
@@ -140,6 +146,6 @@ Here are the lyrics:
 1. Press **Start Audio**.
 2. **Patches → Import** and choose the JSON (or paste it if you are loading from a file you saved).
 3. Press **▶ PLAY** on the Arp / Sequencer if it is not already running (song import starts it).
-4. The Vocal Synth should sing. Patch more cables if you want to play along on the Keyboard.
+4. The Vocal Synth may sit on “Loading the singer…” for a little while the first time. When that clears, it should sing the melody — you should hear voice and drums, not a held oscillator drone. Patch more cables if you want to play along on the Keyboard.
 
 The singer is one live instance only — the voice model is heavy. A second Vocal Synth node will say so rather than starting another engine.

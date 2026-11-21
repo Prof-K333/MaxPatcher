@@ -14,12 +14,15 @@ import { NODE_DEFS, defaultParams } from '../audio/nodeDefs'
 import {
   BAR_STEPS,
   MAX_SEQ_STEPS,
+  RATES,
+  RATE_BEATS,
   ROLL_ROWS,
   SEQ_SLOT_COUNT,
   defaultSeqBank,
   emptySequence,
   serializeSeqBank,
   type NoteSequence,
+  type Rate,
   type SeqBank,
 } from '../audio/sequencer/noteSeq'
 import { normalizeBars, normalizeOrder } from '../audio/sequencer/arrangement'
@@ -59,6 +62,8 @@ export interface SongMelody extends Omit<SongChain, 'bars'> {
   slots?: SongBar[]
   /** Loop length in bars, or (if an array) the same list of slots. */
   bars?: number | SongBar[]
+  /** Sequencer rate, e.g. "1/8" or "1/16". Defaults to the song-level rate, then 1/16. */
+  rate?: Rate
 }
 
 export interface SongDrums extends SongChain {
@@ -89,7 +94,7 @@ export interface SongInstruments {
   drums?: boolean | SongDrums
   bass?: boolean | { type?: string; notes?: string[] | string; wave?: string; volume?: number }
   pad?: boolean | { wave?: string; volume?: number; cutoff?: number }
-  lead?: boolean | { type?: string; volume?: number }
+  lead?: boolean | { type?: string; volume?: number; wave?: string }
   keys?: boolean | { octave?: number; name?: string }
   fx?: string[] | { reverb?: boolean | number; delay?: boolean | number; filter?: boolean | number; spatial?: boolean }
   mixer?: 'mixer' | 'performanceMixer' | false
@@ -114,6 +119,8 @@ export interface SongFile {
   arrangement?: Array<number | string>
   /** Shorthand for the melody loop length, in bars. */
   loopBars?: number
+  /** Melody sequencer rate, e.g. "1/8" or "1/16". Default "1/16". */
+  rate?: Rate
   drums?: boolean | SongDrums
   instruments?: SongInstruments
 }
@@ -207,7 +214,19 @@ function asBars(raw: unknown): SongBar[] {
   })
 }
 
-function melodyParts(song: SongFile): { slots: SongBar[]; orderRaw: unknown; bars: number } {
+function parseMelodyRate(raw: unknown, warnings: string[]): Rate {
+  if (raw === undefined || raw === null || raw === '') return '1/16'
+  if (typeof raw === 'string' && (RATES as readonly string[]).includes(raw)) return raw as Rate
+  warnings.push(`Unknown melody rate “${String(raw)}” — using 1/16.`)
+  return '1/16'
+}
+
+/** How many sequencer steps fill one 4/4 bar at this rate. */
+export function stepsPerBar(rate: Rate): number {
+  return Math.round(4 / RATE_BEATS[rate])
+}
+
+function melodyParts(song: SongFile, warnings: string[]): { slots: SongBar[]; orderRaw: unknown; bars: number; rate: Rate } {
   const fromMelody =
     song.melody && typeof song.melody === 'object' && !Array.isArray(song.melody)
       ? (song.melody as SongMelody)
@@ -222,12 +241,13 @@ function melodyParts(song: SongFile): { slots: SongBar[]; orderRaw: unknown; bar
     slots,
     orderRaw: fromMelody?.order ?? song.arrangement,
     bars: normalizeBars(loopRaw),
+    rate: parseMelodyRate(fromMelody?.rate ?? song.rate, warnings),
   }
 }
 
-function sequenceFromBar(bar: SongBar, root: number, warnings: string[], label: string): NoteSequence {
+function sequenceFromBar(bar: SongBar, root: number, warnings: string[], label: string, barSteps: number): NoteSequence {
   const tokens = parseNoteList(bar.notes)
-  const length = Math.min(MAX_SEQ_STEPS, Math.max(BAR_STEPS, bar.length ?? Math.max(BAR_STEPS, tokens.length)))
+  const length = Math.min(MAX_SEQ_STEPS, Math.max(1, bar.length ?? Math.max(barSteps, tokens.length)))
   const seq = emptySequence(length)
   const words = (bar.lyrics ?? '').split(/[\s-]+/).map((s) => s.trim()).filter(Boolean)
   let word = 0
@@ -252,6 +272,7 @@ function buildMelodyBank(
   root: number,
   globalLyrics: string,
   warnings: string[],
+  barSteps = BAR_STEPS,
 ): SeqBank {
   const bank = defaultSeqBank()
   if (!slots.length) {
@@ -260,7 +281,7 @@ function buildMelodyBank(
   }
   const count = Math.min(SEQ_SLOT_COUNT, slots.length)
   for (let i = 0; i < count; i++) {
-    bank.sequences[i] = sequenceFromBar(slots[i], root, warnings, `Melody slot ${i}`)
+    bank.sequences[i] = sequenceFromBar(slots[i], root, warnings, `Melody slot ${i}`, barSteps)
     bank.lyrics[i] = slots[i].lyrics ?? (i === 0 ? globalLyrics : '')
   }
   if (slots.length > SEQ_SLOT_COUNT) {
@@ -381,8 +402,9 @@ export function expandSong(input: unknown): { patch: PatchFile; warnings: string
     song.drums ?? inst.drums ?? false
   const voice = song.voice ?? {}
 
-  const melodyMeta = melodyParts(song)
+  const melodyMeta = melodyParts(song, warnings)
   const root = inferRoot(song.root, song.key, melodyMeta.slots, warnings)
+  const barSteps = stepsPerBar(melodyMeta.rate)
   const melodyBank = buildMelodyBank(
     melodyMeta.slots,
     melodyMeta.orderRaw,
@@ -390,6 +412,7 @@ export function expandSong(input: unknown): { patch: PatchFile; warnings: string
     root,
     typeof song.lyrics === 'string' ? song.lyrics : '',
     warnings,
+    barSteps,
   )
   const hasMelody = melodyMeta.slots.some((s) => parseNoteList(s.notes).some((n) => n.midi !== null))
 
@@ -425,12 +448,12 @@ export function expandSong(input: unknown): { patch: PatchFile; warnings: string
     nodes.push(
       node('seq', 'arp', x, row2, {
         mode: 'sequence',
-        rate: '1/16',
+        rate: melodyMeta.rate,
         bpm,
-        length: Math.min(MAX_SEQ_STEPS, Math.max(1, melodyBank.sequences[melodyBank.current]?.length ?? BAR_STEPS)),
+        length: Math.min(MAX_SEQ_STEPS, Math.max(1, melodyBank.sequences[melodyBank.current]?.length ?? barSteps)),
         root,
         running: 1,
-        gate: 0.85,
+        gate: 0.9,
         octaves: 1,
         steps: serializeSeqBank(melodyBank),
       }),
@@ -501,17 +524,11 @@ export function expandSong(input: unknown): { patch: PatchFile; warnings: string
   }
 
   if (inst.pad) {
-    const pad = inst.pad === true ? {} : inst.pad
-    nodes.push(
-      node('pad', 'oscillator', x + 280, row3, {
-        type: pad.wave ?? 'sawtooth',
-        frequency: 220,
-        volume: pad.volume ?? -18,
-      }),
+    // A bare oscillator starts on Start Audio and holds a tone with no envelope,
+    // which is a drone — not a usable song pad. Do not auto-insert one.
+    warnings.push(
+      'instruments.pad is not added automatically — a free-running oscillator would drone for the whole song. Patch an oscillator through an envelope and VCA in extras if you want a pad, or omit pad.',
     )
-    nodes.push(node('padFilter', 'filter', x + 480, row3, { frequency: pad.cutoff ?? 800, Q: 2, type: 'lowpass' }))
-    edges.push(wire('pad', 'out', 'padFilter', 'in'))
-    audioSources.push({ id: 'padFilter', mix: 'in4' })
   }
 
   if (inst.lead) {
@@ -524,8 +541,8 @@ export function expandSong(input: unknown): { patch: PatchFile; warnings: string
         x + 760,
         row3,
         type === 'fmsynth'
-          ? { volume: lead.volume ?? -10, carrier: 'sawtooth' }
-          : { volume: lead.volume ?? -10, type: 'sawtooth' },
+          ? { volume: lead.volume ?? -10, carrier: lead.wave ?? 'sawtooth' }
+          : { volume: lead.volume ?? -10, type: lead.wave ?? 'sawtooth' },
       ),
     )
     if (wantKeys && !hasMelody) edges.push(wire('kbd', 'ev:note', 'lead', 'ev:note'))

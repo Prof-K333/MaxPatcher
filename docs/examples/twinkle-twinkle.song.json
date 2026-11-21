@@ -1,0 +1,47 @@
+{
+  "format": "patcher-song",
+  "version": 1,
+  "name": "Twinkle Twinkle Little Star",
+  "bpm": 100,
+  "key": "C",
+  "root": "C4",
+  "rate": "1/8",
+  "lyrics": "Twinkle, twinkle, little star, how I wonder what you are. Up above the world so high, like a diamond in the sky. Twinkle, twinkle, little star, how I wonder what you are.",
+  "voice": {
+    "body": "female",
+    "vowel": "ah",
+    "breath": 0.7
+  },
+  "bars": [
+    { "notes": "C4 C4 G4 G4 A4 A4 G4 .", "lyrics": "Twin-kle twin-kle lit-tle star" },
+    { "notes": "F4 F4 E4 E4 D4 D4 C4 .", "lyrics": "how I won-der what you are" },
+    { "notes": "G4 G4 F4 F4 E4 E4 D4 .", "lyrics": "Up a-bove the world so high" },
+    { "notes": "G4 G4 F4 F4 E4 E4 D4 .", "lyrics": "Like a dia-mond in the sky" },
+    { "notes": "C4 C4 G4 G4 A4 A4 G4 .", "lyrics": "Twin-kle twin-kle lit-tle star" },
+    { "notes": "F4 F4 E4 E4 D4 D4 C4 .", "lyrics": "how I won-der what you are" },
+    { "notes": "G4 G4 F4 F4 E4 E4 D4 .", "lyrics": "Up a-bove the world so high" },
+    { "notes": "G4 G4 F4 F4 E4 E4 D4 .", "lyrics": "Like a dia-mond in the sky" }
+  ],
+  "arrangement": [0, 1, 2, 3, 4, 5, 6, 7],
+  "loopBars": 64,
+  "drums": {
+    "presets": [
+      "Four on the floor",
+      "House",
+      "Clave",
+      "Half time",
+      "Four on the floor",
+      "House",
+      "Clave",
+      "Half time"
+    ],
+    "order": [0, 1, 2, 3, 4, 5, 6, 7],
+    "bars": 64,
+    "volume": -10
+  },
+  "instruments": {
+    "keys": { "name": "Sing along", "octave": 4 },
+    "lead": { "type": "fmsynth", "wave": "triangle", "volume": -12 },
+    "fx": ["reverb"]
+  }
+}
