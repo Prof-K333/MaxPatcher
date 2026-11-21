@@ -25,6 +25,9 @@ const setOccupant = (node: VocalSynthImpl | null) => {
 const breathFor = (velocity: number, amount: number) =>
   Math.max(0, (0.55 + 0.55 * Math.min(1, Math.max(0, velocity))) * amount)
 
+/** Smallest lead the worklet schedule message will use, in seconds. */
+const MIN_LEAD = 0.006
+
 /**
  * After a long load, the queue can hold many seconds of stale noteOn/noteOff
  * events. Replaying them would dump a burst into the voice engine. Keep only
@@ -75,6 +78,7 @@ export class VocalSynthImpl extends NodeImpl {
   private held: number[] = []
   private sounding: { midi: number; syl: Syllable; tag: number } | null = null
   private queued: PatchEvent[] = []
+  private pending: Array<{ id: number }> = []
 
   constructor() {
     super()
@@ -141,7 +145,7 @@ export class VocalSynthImpl extends NodeImpl {
     this.worklet?.port.postMessage(msg)
   }
 
-  private schedule(gestures: ReturnType<typeof planNoteOn>, lead = 0.006) {
+  private schedule(gestures: ReturnType<typeof planNoteOn>, lead = MIN_LEAD) {
     this.send({
       type: 'schedule',
       gestures,
@@ -153,7 +157,7 @@ export class VocalSynthImpl extends NodeImpl {
     })
   }
 
-  private noteOn(midi: number, velocity: number, syl: Syllable) {
+  private noteOn(midi: number, velocity: number, syl: Syllable, time?: number) {
     const body = this.bodyMix()
     const tag = this.nextTag
     this.nextTag += 2
@@ -172,7 +176,9 @@ export class VocalSynthImpl extends NodeImpl {
     for (const g of gs) {
       if (g.targets.breath !== undefined) g.targets = { ...g.targets, breath: g.targets.breath * breath }
     }
-    this.schedule(gs)
+    const now = this.audioNow()
+    const lead = Math.max(MIN_LEAD, (time ?? now) - now)
+    this.schedule(gs, lead)
     this.sounding = { midi, syl, tag }
   }
 
@@ -227,19 +233,67 @@ export class VocalSynthImpl extends NodeImpl {
       if (event.type === 'noteOn' || event.type === 'noteOff') this.queued.push(event)
       return
     }
-    this.handle(event)
+    this.scheduleEvent(event)
   }
 
-  private handle(event: PatchEvent) {
+  /**
+   * The Arp books notes up to 100ms ahead at exact AudioContext times.
+   * Applying them immediately would start-and-release a note in one turn
+   * and skip lyrics. Queue future events and apply them at that audio time.
+   */
+  private scheduleEvent(event: PatchEvent) {
+    const time = event.time
+    if (time === undefined) {
+      this.apply(event)
+      return
+    }
+    const delay = time - this.audioNow()
+    if (!(delay > 0)) {
+      this.apply(event)
+      return
+    }
+    const ctx = Tone.getContext() as Tone.Context
+    const id = ctx.setTimeout(() => {
+      this.pending = this.pending.filter((p) => p.id !== id)
+      if (this.disposed || this.blocked) return
+      this.apply(event)
+    }, delay)
+    this.pending.push({ id })
+  }
+
+  private cancelPending() {
+    const ctx = Tone.getContext() as Tone.Context
+    for (const p of this.pending) ctx.clearTimeout(p.id)
+    this.pending = []
+  }
+
+  /**
+   * LookaheadClock stamps events with raw AudioContext time. Tone.now()
+   * includes a 100ms lookAhead, so treating that as "now" would make every
+   * booked note look late and fire immediately — the bug this node had.
+   */
+  private audioNow(): number {
+    const ctx = Tone.getContext() as Tone.Context
+    if (typeof ctx.immediate === 'function') {
+      const t = ctx.immediate()
+      if (Number.isFinite(t)) return t
+    }
+    const raw = ctx.rawContext as unknown as { currentTime?: number } | undefined
+    if (raw && Number.isFinite(raw.currentTime)) return raw.currentTime as number
+    if (Number.isFinite(ctx.currentTime)) return ctx.currentTime
+    return Tone.now()
+  }
+
+  private apply(event: PatchEvent) {
     if (event.type === 'noteOn') {
       this.held = this.held.filter((n) => n !== event.note).concat(event.note)
-      this.noteOn(event.note, event.velocity, this.syllableFor(event))
+      this.noteOn(event.note, event.velocity, this.syllableFor(event), event.time)
     } else if (event.type === 'noteOff') {
       this.held = this.held.filter((n) => n !== event.note)
       this.noteOff(event.note)
     } else if (event.type === 'bang') {
       this.held = this.held.filter((n) => n !== 60).concat(60)
-      this.noteOn(60, event.velocity ?? 0.8, this.syllables[this.cursor] ?? defaultSyllable(this.vowel))
+      this.noteOn(60, event.velocity ?? 0.8, this.syllables[this.cursor] ?? defaultSyllable(this.vowel), event.time)
       if (this.syllables.length) this.cursor = (this.cursor + 1) % this.syllables.length
     }
   }
@@ -248,7 +302,7 @@ export class VocalSynthImpl extends NodeImpl {
     const pending = this.queued
     this.queued = []
     const live = liveNoteFromQueue(pending)
-    if (live) this.handle(live)
+    if (live) this.scheduleEvent(live)
   }
 
   private markReady() {
@@ -304,6 +358,7 @@ export class VocalSynthImpl extends NodeImpl {
   }
 
   onStop() {
+    this.cancelPending()
     this.held = []
     if (this.sounding) {
       this.send({ type: 'release', tag: this.sounding.tag })

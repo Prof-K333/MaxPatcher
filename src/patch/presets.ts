@@ -62,6 +62,38 @@ function bankFrom(lanes: Partial<Record<TrackId, LaneSpec>>): string {
 }
 
 
+
+/** Several drum slots plus a memory chain (64- or 128-bar loops). */
+function drumBankFrom(
+  patterns: Array<Partial<Record<TrackId, LaneSpec>>>,
+  order: number[],
+  bars: number,
+): string {
+  const bank = defaultBank()
+  patterns.forEach((lanes, i) => {
+    if (i >= bank.patterns.length) return
+    const pattern = bank.patterns[i]
+    for (const id of TRACKS) {
+      const track = pattern[id]
+      track.level = Array(MAX_STEPS).fill(0) as StepLevel[]
+      track.ratchet = Array(MAX_STEPS).fill(1)
+      track.prob = Array(MAX_STEPS).fill(1)
+      track.length = MAX_STEPS
+
+      const spec = lanes[id]
+      if (!spec) continue
+      spec.on.forEach((s) => (track.level[s] = 1))
+      spec.accent?.forEach((s) => (track.level[s] = 2))
+      if (spec.length) track.length = spec.length
+      if (spec.ratchet) for (const [step, r] of Object.entries(spec.ratchet)) track.ratchet[Number(step)] = r
+    }
+  })
+  bank.order = order
+  bank.bars = bars
+  bank.current = order[0] ?? 0
+  return serializeBank(bank)
+}
+
 /** Builds an arp sequence bank from readable [step, semitone, accent?] triples. */
 function seqFrom(notes: Array<[number, number, boolean?]>, slot = 8): string {
   const bank = defaultSeqBank()
@@ -649,6 +681,138 @@ const jingleBells = () =>
     ],
   )
 
+
+const williamTell = () =>
+  patch(
+    'William Tell Overture',
+    [
+      node('arp', 'arp', 40, 40, {
+        mode: 'sequence',
+        rate: '1/16',
+        gate: 0.7,
+        bpm: 152,
+        root: 59,
+        running: 1,
+        // Finale galop of Rossini's 1829 overture (public domain). Root B3,
+        // roll B3–B4, in E major — the famous theme starting on the dominant.
+        // 8 slots × 8 repeats = 64 bars. Rhythm is written in sixteenths
+        // (two 2/4 bars per slot). Not a transcription of a later recording.
+        steps: seqBankFrom(
+          [
+            // ABC 1–2: repeated B, then E F# G# B
+            [
+              [0, 0, true], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [7, 0],
+              [8, 5, true], [9, 5], [10, 7], [11, 7], [12, 9], [13, 9], [14, 0], [15, 0],
+            ],
+            // ABC 3–4: B, E G#, then F# D# B
+            [
+              [0, 0, true], [1, 0], [2, 0], [3, 0], [4, 5], [5, 5], [6, 9], [7, 9],
+              [8, 7, true], [9, 7], [10, 4], [11, 4], [12, 0], [13, 0], [14, 0], [15, 0],
+            ],
+            // ABC 5–6: same start, ending E G#
+            [
+              [0, 0, true], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [7, 0],
+              [8, 5, true], [9, 5], [10, 7], [11, 7], [12, 9], [13, 9], [14, 5], [15, 9],
+            ],
+            // ABC 7–8 first ending: high B run down, then E G# E and a pickup
+            [
+              [0, 12, true], [1, 12], [2, 12], [3, 12], [4, 12], [5, 10], [6, 9], [7, 7],
+              [8, 5, true], [9, 5], [10, 9], [11, 9], [12, 5], [13, 5], [14, 0], [15, 0],
+            ],
+            // Repeat of ABC 1–2
+            [
+              [0, 0, true], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [7, 0],
+              [8, 5, true], [9, 5], [10, 7], [11, 7], [12, 9], [13, 9], [14, 0], [15, 0],
+            ],
+            // Repeat of ABC 3–4
+            [
+              [0, 0, true], [1, 0], [2, 0], [3, 0], [4, 5], [5, 5], [6, 9], [7, 9],
+              [8, 7, true], [9, 7], [10, 4], [11, 4], [12, 0], [13, 0], [14, 0], [15, 0],
+            ],
+            // Repeat of ABC 5–6
+            [
+              [0, 0, true], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [7, 0],
+              [8, 5, true], [9, 5], [10, 7], [11, 7], [12, 9], [13, 9], [14, 5], [15, 9],
+            ],
+            // ABC 7 + second ending, landing on E
+            [
+              [0, 12, true], [1, 12], [2, 12], [3, 12], [4, 12], [5, 10], [6, 9], [7, 7],
+              [8, 5, true], [9, 5], [10, 9], [11, 9], [12, 5], [13, 5], [14, 5], [15, 5],
+            ],
+          ],
+          [0, 1, 2, 3, 4, 5, 6, 7],
+          64,
+        ),
+      }),
+      node('saw', 'oscillator', 400, 40, { type: 'sawtooth', frequency: 247, volume: -10 }),
+      node('square', 'oscillator', 400, 360, { type: 'square', frequency: 123, detune: -1200, volume: -14 }),
+      node('env', 'envelope', 720, 40, { attack: 0.005, decay: 0.1, sustain: 0.35, release: 0.08 }),
+      node('oscMix', 'mixer', 720, 360, { level1: 1, level2: 0.55, master: 0.9 }),
+      node('vca', 'vca', 720, 680, { bias: 0, curve: 'linear' }),
+      node('filt', 'filter', 1040, 360, { type: 'lowpass', frequency: 2800, Q: 3.5, rolloff: '-24' }),
+      node('seq', 'drumSeq', 40, 400, {
+        bpm: 152,
+        running: 1,
+        patterns: drumBankFrom(
+          [
+            {
+              bd: { on: [], accent: [0, 8] },
+              sd: { on: [], accent: [4, 12] },
+              ch: { on: [0, 1, 4, 5, 8, 9, 12, 13] },
+              cb: { on: [2, 6, 10, 14] },
+              acc: { on: [], accent: [0, 8] },
+            },
+            {
+              bd: { on: [4], accent: [0, 8] },
+              sd: { on: [], accent: [4, 12] },
+              ch: { on: [0, 1, 4, 5, 8, 9, 12, 13] },
+              oh: { on: [14] },
+              cb: { on: [2, 10] },
+              acc: { on: [], accent: [0, 4, 8, 12] },
+            },
+            {
+              bd: { on: [], accent: [0, 8] },
+              sd: { on: [10], accent: [4, 12] },
+              ch: { on: [0, 1, 2, 4, 5, 8, 9, 12, 13] },
+              cb: { on: [6, 14] },
+              acc: { on: [], accent: [0, 8] },
+            },
+            {
+              bd: { on: [4], accent: [0, 8, 12] },
+              sd: { on: [], accent: [4, 12] },
+              ch: { on: [0, 1, 4, 5, 8, 9, 12, 13] },
+              oh: { on: [6, 14] },
+              cb: { on: [2, 6, 10, 14] },
+              acc: { on: [], accent: [0, 8, 12] },
+            },
+          ],
+          [0, 1, 0, 2, 0, 1, 0, 3],
+          64,
+        ),
+      }),
+      node('drums', 'drums808', 100, 800, { masterVolume: 0.62, level_ch: 0.28, level_cb: 0.35, level_sd: 0.7, level_bd: 0.85 }),
+      node('mix', 'mixer', 1040, 680, { level1: 1, level2: 0.7, master: 0.85 }),
+      node('verb', 'reverb', 1320, 680, { decay: 1.6, wet: 0.18 }),
+      node('master', 'destination', 1320, 980, { volume: -8 }),
+    ],
+    [
+      wire('seq', 'ev:clockOut', 'arp', 'ev:clock'),
+      wire('arp', 'ev:note', 'env', 'ev:trig'),
+      wire('arp', 'pitch', 'saw', 'param:frequency'),
+      wire('arp', 'pitch', 'square', 'param:frequency'),
+      wire('saw', 'out', 'oscMix', 'in1'),
+      wire('square', 'out', 'oscMix', 'in2'),
+      wire('oscMix', 'out', 'vca', 'in'),
+      wire('env', 'out', 'vca', 'cv:gain'),
+      wire('vca', 'out', 'filt', 'in'),
+      wire('filt', 'out', 'mix', 'in1'),
+      ...drumCables('seq', 'drums'),
+      wire('drums', 'out', 'mix', 'in2'),
+      wire('mix', 'out', 'verb', 'in'),
+      wire('verb', 'out', 'master', 'in'),
+    ],
+  )
+
 export interface Preset {
   name: string
   blurb: string
@@ -755,5 +919,10 @@ export const PRESETS: Preset[] = [
     name: 'Yankee Doodle',
     blurb: 'The traditional public-domain march, including the “Yankee Doodle dandy” chorus, as a 64-bar sung loop.',
     build: yankeeDoodle,
+  },
+  {
+    name: 'William Tell Overture',
+    blurb: "Rossini's 1829 finale galop, as a bright analog-synth 64-bar loop: saw and square through an envelope and VCA.",
+    build: williamTell,
   },
 ]
