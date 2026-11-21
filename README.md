@@ -69,7 +69,7 @@ Use that path to try unusual instrument combinations, not only the default singe
 | `src/components/Piano.tsx` | The playable keyboard, shared by the node and the dock. |
 | `src/patch/format.ts` | Patch file format — serialize, and validate untrusted JSON on the way in. |
 | `src/patch/storage.ts` | localStorage autosave and named slots. |
-| `src/patch/presets.ts` | The fifteen example patches (seven demos and eight public-domain song hooks). |
+| `src/patch/presets.ts` | The eighteen example patches (seven demos and eleven public-domain song hooks). |
 | `src/patch/share.ts` | Compresses a patch into a shareable `#p=` URL hash. |
 | `src/patch/history.ts` | Snapshot undo/redo for patch state. |
 
@@ -424,8 +424,8 @@ toolbar slider and the Master Out node are two views of one value.
 
 ![The Patches menu open on Example patches, listing module demos and public-domain song hooks.](docs/images/example-patches.png)
 
-**Patches → Example patches** loads seventeen patches: seven module demos and
-ten public-domain song hooks. Each one is a saved performance setup that
+**Patches → Example patches** loads eighteen patches: seven module demos and
+eleven public-domain song hooks. Each one is a saved performance setup that
 wires modules together (they live in `src/patch/presets.ts` rather than as
 separate files on disk). They are built to show a different part of the app
 and to make sound as soon as they load:
@@ -449,8 +449,9 @@ and to make sound as soon as they load:
 | **Jingle Bells** | James Pierpont's 1857 holiday song (public domain), with cowbell. |
 | **Row, Row, Row Your Boat** | A sung public-domain hook: lyrics, a chained eighth-note melody, and a 64-bar drum loop, from song JSON. |
 | **Yankee Doodle** | The traditional public-domain march, including the “Yankee Doodle dandy” chorus, as a 64-bar sung loop (eight memory slots × eight repeats). |
+| **William Tell Overture** | Rossini's 1829 finale galop, as a bright analog-synth 64-bar loop (saw and square through an envelope, VCA, and filter, plus drums). |
 
-808 Jam, Polymeter Clockwork, Modulation Lab and the ten song hooks play on
+808 Jam, Polymeter Clockwork, Modulation Lab and the eleven song hooks play on
 their own once audio is running; Tape Loop Drone and Granular Shimmer are
 instruments, so play the keyboard. Presets are built as ordinary patch files
 and go through the same validation as an imported one, so a broken preset

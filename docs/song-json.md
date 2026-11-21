@@ -11,7 +11,7 @@ Import accepts both. File import, share links, and `deserialize()` all go throug
 
 ## A short example
 
-Complete files live in [`examples/row-your-boat.song.json`](./examples/row-your-boat.song.json), [`examples/yankee-doodle.song.json`](./examples/yankee-doodle.song.json) (a 64-bar memory-chain march), and [`examples/twinkle-twinkle.song.json`](./examples/twinkle-twinkle.song.json) (a 64-bar sung nursery song with a lead and drums). The first is a public-domain nursery song. A compact shape looks like this:
+Complete files live in [`examples/row-your-boat.song.json`](./examples/row-your-boat.song.json), [`examples/yankee-doodle.song.json`](./examples/yankee-doodle.song.json) (a 64-bar memory-chain march), and [`examples/twinkle-twinkle.song.json`](./examples/twinkle-twinkle.song.json) (a 64-bar sung nursery song with a lead and drums). There is also [`examples/william-tell-overture.song.json`](./examples/william-tell-overture.song.json) (Rossini's finale galop as a 64-bar instrumental chain). The Patches menu preset of the same name is a hand-patched analog voice (oscillators through an envelope and VCA) rather than this JSON expansion. The first is a public-domain nursery song. A compact shape looks like this:
 
 ```json
 {
