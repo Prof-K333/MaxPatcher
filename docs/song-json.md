@@ -11,7 +11,7 @@ Import accepts both. File import, share links, and `deserialize()` all go throug
 
 ## A short example
 
-The complete file in [`examples/row-your-boat.song.json`](./examples/row-your-boat.song.json) is a public-domain nursery song. A compact shape looks like this:
+Complete files live in [`examples/row-your-boat.song.json`](./examples/row-your-boat.song.json) and [`examples/yankee-doodle.song.json`](./examples/yankee-doodle.song.json) (a 64-bar memory-chain march). The first is a public-domain nursery song. A compact shape looks like this:
 
 ```json
 {

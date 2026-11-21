@@ -422,10 +422,10 @@ toolbar slider and the Master Out node are two views of one value.
 
 ## Example patches
 
-![The Patches menu open on Example patches, listing the seven module demos and the eight public-domain song hooks.](docs/images/example-patches.png)
+![The Patches menu open on Example patches, listing module demos and public-domain song hooks.](docs/images/example-patches.png)
 
-**Patches → Example patches** loads sixteen patches: seven module demos and
-nine public-domain song hooks. Each one is a saved performance setup that
+**Patches → Example patches** loads seventeen patches: seven module demos and
+ten public-domain song hooks. Each one is a saved performance setup that
 wires modules together (they live in `src/patch/presets.ts` rather than as
 separate files on disk). They are built to show a different part of the app
 and to make sound as soon as they load:
@@ -448,8 +448,9 @@ and to make sound as soon as they load:
 | **Eine kleine Nachtmusik** | Mozart's opening fanfare from the 1787 serenade. |
 | **Jingle Bells** | James Pierpont's 1857 holiday song (public domain), with cowbell. |
 | **Row, Row, Row Your Boat** | A sung public-domain hook: lyrics, a chained melody, a 64-bar drum loop, and a pad, from song JSON. |
+| **Yankee Doodle** | The traditional public-domain march, including the “Yankee Doodle dandy” chorus, as a 64-bar sung loop (eight memory slots × eight repeats). |
 
-808 Jam, Polymeter Clockwork, Modulation Lab and the nine song hooks play on
+808 Jam, Polymeter Clockwork, Modulation Lab and the ten song hooks play on
 their own once audio is running; Tape Loop Drone and Granular Shimmer are
 instruments, so play the keyboard. Presets are built as ordinary patch files
 and go through the same validation as an imported one, so a broken preset
