@@ -38,7 +38,9 @@ const encodeSyllable = (s?: string) => (s ?? '').replace(/[/|]/g, ' ').trim()
 export function parseSequence(raw: unknown): NoteSequence {
   if (typeof raw !== 'string' || !raw.includes('|')) return emptySequence()
   const [pitches, accents, syllables] = raw.split('|')
-  const count = Math.min(MAX_SEQ_STEPS, Math.max(pitches.length, NOTE_STEPS))
+  // Honour the packed length so a 1/8-rate bar of 8 steps does not get padded
+  // back to a 16-step slot (which would double the bar at playback).
+  const count = Math.min(MAX_SEQ_STEPS, Math.max(1, pitches.length))
   const seq = emptySequence(count)
   const syls = syllables !== undefined ? syllables.split('/') : []
   for (let i = 0; i < count; i++) {

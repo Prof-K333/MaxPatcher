@@ -26,6 +26,26 @@ const breathFor = (velocity: number, amount: number) =>
   Math.max(0, (0.55 + 0.55 * Math.min(1, Math.max(0, velocity))) * amount)
 
 /**
+ * After a long load, the queue can hold many seconds of stale noteOn/noteOff
+ * events. Replaying them would dump a burst into the voice engine. Keep only
+ * a note that is still held at the end of the queue, if any.
+ */
+export function liveNoteFromQueue(events: PatchEvent[]): Extract<PatchEvent, { type: 'noteOn' }> | null {
+  const held: Array<Extract<PatchEvent, { type: 'noteOn' }>> = []
+  for (const event of events) {
+    if (event.type === 'noteOn') {
+      const i = held.findIndex((e) => e.note === event.note)
+      if (i >= 0) held.splice(i, 1)
+      held.push(event)
+    } else if (event.type === 'noteOff') {
+      const i = held.findIndex((e) => e.note === event.note)
+      if (i >= 0) held.splice(i, 1)
+    }
+  }
+  return held.at(-1) ?? null
+}
+
+/**
  * Chimera singer: notes in, voice out, patched into the mixer like any other voice.
  *
  * The official Chimera AudioEngine is not used here. It would construct its own
@@ -227,7 +247,15 @@ export class VocalSynthImpl extends NodeImpl {
   private flushQueue() {
     const pending = this.queued
     this.queued = []
-    for (const event of pending) this.handle(event)
+    const live = liveNoteFromQueue(pending)
+    if (live) this.handle(live)
+  }
+
+  private markReady() {
+    if (this.ready || this.disposed || this.blocked) return
+    this.ready = true
+    this.status = ''
+    this.flushQueue()
   }
 
   private async boot() {
@@ -245,10 +273,13 @@ export class VocalSynthImpl extends NodeImpl {
         outputChannelCount: [2],
         processorOptions: { module: chimeraModule() },
       })
+      // postReady() may fire during construction, before this handler exists.
+      // Sending `body` immediately makes the worklet post ready again, which
+      // we cannot miss. Do not mark ready or flush until that message arrives.
       node.port.onmessage = (e: MessageEvent<{ type?: string; message?: string }>) => {
+        if (this.disposed) return
         if (e.data?.type === 'ready') {
-          this.send({ type: 'telemetry', enabled: false })
-          this.send({ type: 'body', body: this.bodyMix() })
+          this.markReady()
         } else if (e.data?.type === 'error') {
           this.status = e.data.message || 'The singer stopped unexpectedly.'
           this.ready = false
@@ -256,10 +287,9 @@ export class VocalSynthImpl extends NodeImpl {
       }
       node.connect(this.output.input as unknown as AudioNode)
       this.worklet = node
+      this.send({ type: 'telemetry', enabled: false })
+      this.send({ type: 'body', body: this.bodyMix() })
       this.rebuildLyrics()
-      this.ready = true
-      this.status = ''
-      this.flushQueue()
     } catch (err) {
       this.ready = false
       this.status = err instanceof Error ? err.message : 'The singer could not start.'

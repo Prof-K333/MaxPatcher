@@ -12,6 +12,7 @@ const twinkle: SongFile = {
   bpm: 100,
   key: 'C',
   root: 'C4',
+  rate: '1/8',
   lyrics: 'Twinkle twinkle little star how I wonder what you are',
   voice: { body: 'female', vowel: 'ah', breath: 0.7 },
   bars: [
@@ -26,7 +27,7 @@ const twinkle: SongFile = {
     bars: 64,
   },
   instruments: {
-    pad: { wave: 'sawtooth', cutoff: 900 },
+    lead: { type: 'fmsynth', wave: 'triangle' },
     fx: ['reverb'],
   },
 }
@@ -54,7 +55,9 @@ describe('patcher-song JSON', () => {
     expect(types.seq.type).toBe('arp')
     expect(types.drumSeq.type).toBe('drumSeq')
     expect(types.drums.type).toBe('drums808')
-    expect(types.pad.type).toBe('oscillator')
+    expect(types.lead.type).toBe('fmsynth')
+    expect(types.seq.params.rate).toBe('1/8')
+    expect(types.seq.params.gate).toBe(0.9)
     expect(types.verb.type).toBe('reverb')
     expect(types.mix.type).toBe('mixer')
     expect(types.master.type).toBe('destination')
@@ -148,5 +151,33 @@ describe('patcher-song JSON', () => {
 
   it('rejects a future song version, and a missing format is still a parse error', () => {
     expect(() => deserialize({ format: 'patcher-song', version: 99, bars: [] })).toThrow(/newer/)
+  })
+
+  it('does not auto-insert a free-running oscillator for instruments.pad', () => {
+    const { patch, warnings } = expandSong({
+      format: 'patcher-song',
+      name: 'Pad warning',
+      lyrics: 'ah',
+      instruments: { pad: { wave: 'triangle', cutoff: 800 } },
+    })
+    expect(patch.nodes.some((n) => n.type === 'oscillator')).toBe(false)
+    expect(warnings.join('\n')).toMatch(/drone/i)
+  })
+
+  it('uses 8-step bars when the melody rate is 1/8', () => {
+    const { patch, warnings } = expandSong({
+      format: 'patcher-song',
+      name: 'Eighths',
+      root: 'C4',
+      rate: '1/8',
+      bars: [{ notes: 'C4 E4 G4 C5' }],
+    })
+    expect(warnings).toEqual([])
+    const seq = patch.nodes.find((n) => n.type === 'arp')!
+    expect(seq.params.rate).toBe('1/8')
+    const melody = parseSeqBank(String(seq.params.steps))
+    expect(melody.sequences[0]).toHaveLength(8)
+    expect(melody.sequences[0][0]).toMatchObject({ pitch: 0 })
+    expect(melody.sequences[0][1]).toMatchObject({ pitch: 4 })
   })
 })

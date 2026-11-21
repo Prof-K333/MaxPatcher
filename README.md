@@ -441,13 +441,13 @@ and to make sound as soon as they load:
 | **Envelope VCA** | A classic modular voice: keyboard into an envelope, oscillator through a VCA. |
 | **Ode to Joy** | Beethoven's hymn theme from the Ninth Symphony, as a sequenced voice. |
 | **Für Elise** | Beethoven's famous E–D♯–E opening, played by the arp in sequence mode. |
-| **Twinkle Twinkle Little Star** | The traditional English nursery song. |
+| **Twinkle Twinkle Little Star** | The traditional English nursery song, sung with a lead and drums in a 64-bar loop. |
 | **The Entertainer** | Scott Joplin's 1902 ragtime hook (public domain), with a light 808 beat. |
 | **In the Hall of the Mountain King** | Grieg's creeping theme from *Peer Gynt*. |
 | **When the Saints Go Marching In** | The traditional New Orleans spiritual, with a swung drum pattern. |
-| **Eine kleine Nachtmusik** | Mozart's opening fanfare from the 1787 serenade. |
+| **Eine kleine Nachtmusik** | Mozart's opening theme from the 1787 serenade, as a 128-bar melody chain. |
 | **Jingle Bells** | James Pierpont's 1857 holiday song (public domain), with cowbell. |
-| **Row, Row, Row Your Boat** | A sung public-domain hook: lyrics, a chained melody, a 64-bar drum loop, and a pad, from song JSON. |
+| **Row, Row, Row Your Boat** | A sung public-domain hook: lyrics, a chained eighth-note melody, and a 64-bar drum loop, from song JSON. |
 | **Yankee Doodle** | The traditional public-domain march, including the “Yankee Doodle dandy” chorus, as a 64-bar sung loop (eight memory slots × eight repeats). |
 
 808 Jam, Polymeter Clockwork, Modulation Lab and the ten song hooks play on

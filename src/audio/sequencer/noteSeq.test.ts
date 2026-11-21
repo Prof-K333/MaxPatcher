@@ -3,6 +3,7 @@ import {
   MAX_SEQ_STEPS,
   NOTE_STEPS,
   defaultSeqBank,
+  emptySequence,
   parseSeqBank,
   parseSequence,
   serializeSeqBank,
@@ -12,7 +13,7 @@ import {
 
 describe('sequence parse/serialize', () => {
   it('still loads a packed 16-step string from older patches', () => {
-    const packed = '0.3.7.........|1.0.1..........'
+    const packed = '0.3.7...........|1.0.1...........'
     const seq = parseSequence(packed)
     expect(seq).toHaveLength(NOTE_STEPS)
     expect(seq[0]).toMatchObject({ pitch: 0, accent: true })
@@ -59,6 +60,16 @@ describe('sequence parse/serialize', () => {
     const bank = parseSeqBank('0.3.|1.0.')
     expect(bank.sequences[0][0].pitch).toBe(0)
     expect(bank.order).toEqual([])
+  })
+
+  it('keeps an 8-step packed bar at 8 steps, rather than padding to 16', () => {
+    const seq = emptySequence(8)
+    seq[0] = { pitch: 0, accent: true }
+    seq[1] = { pitch: 4, accent: false }
+    const again = parseSequence(serializeSequence(seq))
+    expect(again).toHaveLength(8)
+    expect(again[0]).toMatchObject({ pitch: 0, accent: true })
+    expect(again[1]).toMatchObject({ pitch: 4, accent: false })
   })
 
   it('caps a slot at MAX_SEQ_STEPS and tokenizes lyrics into syllables', () => {

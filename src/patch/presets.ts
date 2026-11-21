@@ -74,6 +74,26 @@ function seqFrom(notes: Array<[number, number, boolean?]>, slot = 8): string {
   return serializeSeqBank(bank)
 }
 
+/** Several melody slots plus a memory chain (64- or 128-bar loops). */
+function seqBankFrom(
+  slots: Array<Array<[number, number, boolean?]>>,
+  order: number[],
+  bars: number,
+): string {
+  const bank = defaultSeqBank()
+  slots.forEach((notes, i) => {
+    const seq = emptySequence()
+    for (const [step, pitch, accent] of notes) {
+      if (step < NOTE_STEPS && pitch >= 0 && pitch < ROLL_ROWS) seq[step] = { pitch, accent: !!accent }
+    }
+    bank.sequences[i] = seq
+  })
+  bank.order = order
+  bank.bars = bars
+  bank.current = order[0] ?? 0
+  return serializeSeqBank(bank)
+}
+
 const patch = (name: string, nodes: SerializedNode[], edges: SerializedEdge[]): PatchFile => ({
   format: 'patcher',
   version: 1,
@@ -363,34 +383,43 @@ const fuerElise = () =>
     ],
   )
 
-const twinkle = () =>
-  patch(
-    'Twinkle Twinkle Little Star',
-    [
-      node('arp', 'arp', 40, 40, {
-        mode: 'sequence',
-        rate: '1/4',
-        gate: 0.8,
-        bpm: 100,
-        root: 60,
-        running: 1,
-        steps: seqFrom([
-          [0, 0, true], [1, 0], [2, 7], [3, 7], [4, 9], [5, 9], [6, 7, true],
-          [8, 5], [9, 5], [10, 4], [11, 4], [12, 2], [13, 2], [14, 0, true],
-        ]),
-      }),
-      node('lead', 'fmsynth', 560, 40, { carrier: 'triangle', harmonicity: 2, modulationIndex: 0.8, attack: 0.01, decay: 0.2, sustain: 0.35, release: 0.25, volume: -7 }),
-      node('filt', 'filter', 560, 420, { frequency: 3200, Q: 2, type: 'lowpass' }),
-      node('verb', 'reverb', 560, 720, { decay: 2.2, wet: 0.25 }),
-      node('master', 'destination', 580, 1000, { volume: -8 }),
-    ],
-    [
-      wire('arp', 'ev:note', 'lead', 'ev:note'),
-      wire('lead', 'out', 'filt', 'in'),
-      wire('filt', 'out', 'verb', 'in'),
-      wire('verb', 'out', 'master', 'in'),
-    ],
-  )
+const twinkleSong: SongFile = {
+  format: 'patcher-song',
+  version: 1,
+  name: 'Twinkle Twinkle Little Star',
+  bpm: 100,
+  key: 'C',
+  root: 'C4',
+  rate: '1/8',
+  lyrics:
+    'Twinkle, twinkle, little star, how I wonder what you are. Up above the world so high, like a diamond in the sky. Twinkle, twinkle, little star, how I wonder what you are.',
+  voice: { body: 'female', vowel: 'ah', breath: 0.7 },
+  bars: [
+    { notes: 'C4 C4 G4 G4 A4 A4 G4 .', lyrics: 'Twin-kle twin-kle lit-tle star' },
+    { notes: 'F4 F4 E4 E4 D4 D4 C4 .', lyrics: 'how I won-der what you are' },
+    { notes: 'G4 G4 F4 F4 E4 E4 D4 .', lyrics: 'Up a-bove the world so high' },
+    { notes: 'G4 G4 F4 F4 E4 E4 D4 .', lyrics: 'Like a dia-mond in the sky' },
+    { notes: 'C4 C4 G4 G4 A4 A4 G4 .', lyrics: 'Twin-kle twin-kle lit-tle star' },
+    { notes: 'F4 F4 E4 E4 D4 D4 C4 .', lyrics: 'how I won-der what you are' },
+    { notes: 'G4 G4 F4 F4 E4 E4 D4 .', lyrics: 'Up a-bove the world so high' },
+    { notes: 'G4 G4 F4 F4 E4 E4 D4 .', lyrics: 'Like a dia-mond in the sky' },
+  ],
+  arrangement: [0, 1, 2, 3, 4, 5, 6, 7],
+  loopBars: 64,
+  drums: {
+    presets: ['Four on the floor', 'House', 'Clave', 'Half time', 'Four on the floor', 'House', 'Clave', 'Half time'],
+    order: [0, 1, 2, 3, 4, 5, 6, 7],
+    bars: 64,
+    volume: -10,
+  },
+  instruments: {
+    keys: { name: 'Sing along', octave: 4 },
+    lead: { type: 'fmsynth', wave: 'triangle', volume: -12 },
+    fx: ['reverb'],
+  },
+}
+
+const twinkle = () => expandSong(twinkleSong).patch
 
 const entertainer = () =>
   patch(
@@ -537,9 +566,30 @@ const nachtmusik = () =>
         bpm: 126,
         root: 50,
         running: 1,
-        steps: seqFrom([
-          [0, 5, true], [4, 0, true], [8, 5], [9, 0], [10, 5], [11, 9], [12, 12, true],
-        ]),
+        // Opening theme of K.525 I, public domain. Root D3, roll D3–D4.
+        // 8 one-bar phrases × 16 repeats = 128 bars.
+        steps: seqBankFrom(
+          [
+            // m1: G D | G D G B | D  — the opening fanfare
+            [[0, 5, true], [4, 0, true], [8, 5], [9, 0], [10, 5], [11, 9], [12, 12, true]],
+            // m2: C A | C A F# A | D
+            [[0, 10, true], [4, 7, true], [8, 10], [9, 7], [10, 4], [11, 7], [12, 0, true]],
+            // m1 again
+            [[0, 5, true], [4, 0, true], [8, 5], [9, 0], [10, 5], [11, 9], [12, 12, true]],
+            // m2, landing on D
+            [[0, 10, true], [4, 7, true], [8, 10], [9, 7], [10, 4], [11, 7], [12, 0, true]],
+            // answering phrase: G … G B A G
+            [[0, 5, true], [6, 5], [8, 9], [10, 7], [12, 5]],
+            // G F# F# A C F#
+            [[0, 5], [2, 4], [4, 4], [6, 7], [8, 10], [10, 4, true]],
+            // A G G B A G
+            [[0, 7], [2, 5], [4, 5], [6, 9], [8, 7], [10, 5]],
+            // G F# F# A C F#, then the chain returns to the fanfare
+            [[0, 5], [2, 4], [4, 4], [6, 7], [8, 10], [10, 4, true]],
+          ],
+          [0, 1, 2, 3, 4, 5, 6, 7],
+          128,
+        ),
       }),
       node('lead', 'fmsynth', 560, 40, { carrier: 'sawtooth', harmonicity: 1, modulationIndex: 1.2, attack: 0.008, decay: 0.18, sustain: 0.55, release: 0.2, volume: -7 }),
       node('filt', 'filter', 560, 420, { frequency: 2200, Q: 2.5 }),
@@ -613,14 +663,15 @@ const rowYourBoatSong: SongFile = {
   bpm: 108,
   key: 'C',
   root: 'C4',
+  rate: '1/8',
   lyrics:
     'Row, row, row your boat gently down the stream. Merrily, merrily, merrily, merrily, life is but a dream.',
   voice: { body: 'female', vowel: 'ah', breath: 0.72 },
   bars: [
-    { notes: 'C4 . C4 . C4 . D4 . E4 . . . E4 . D4 . E4 .', lyrics: 'Row row row your boat gent-ly down the' },
-    { notes: 'F4 . . . G4 . . . . . . . . . . .', lyrics: 'stream' },
-    { notes: 'C5 C5 C5 G4 G4 G4 E4 E4 E4 C4 C4 C4 . . . .', lyrics: 'Mer-ri-ly mer-ri-ly mer-ri-ly mer-ri-ly' },
-    { notes: 'G4 . F4 . E4 . D4 . C4 . . . . . . .', lyrics: 'life is but a dream' },
+    { notes: 'C4 C4 C4 D4 E4 E4 D4 E4', lyrics: 'Row row row your boat gent-ly down the' },
+    { notes: 'F4 . G4 . . . . .', lyrics: 'stream' },
+    { notes: 'C5 C5 C5 G4 G4 G4 E4 E4 E4 C4 C4 C4 . . . .', lyrics: 'Mer-ri-ly mer-ri-ly mer-ri-ly mer-ri-ly', length: 16 },
+    { notes: 'G4 F4 E4 D4 C4 . . .', lyrics: 'life is but a dream' },
   ],
   arrangement: [0, 1, 2, 3],
   loopBars: 64,
@@ -631,7 +682,6 @@ const rowYourBoatSong: SongFile = {
   },
   instruments: {
     keys: { name: 'Sing along', octave: 4 },
-    pad: { wave: 'triangle', cutoff: 700 },
     fx: ['reverb'],
   },
 }
@@ -645,18 +695,19 @@ const yankeeDoodleSong: SongFile = {
   bpm: 116,
   key: 'G',
   root: 'D4',
+  rate: '1/8',
   lyrics:
     'Yankee Doodle went to town a-riding on a pony, stuck a feather in his cap and called it macaroni. Yankee Doodle keep it up, Yankee Doodle dandy, mind the music and the step and with the girls be handy.',
   voice: { body: 'male', vowel: 'ah', breath: 0.7 },
   bars: [
-    { notes: 'G4 . G4 . A4 . B4 . G4 . B4 . A4 . D5 .', lyrics: 'Yan-kee Doo-dle went to town' },
-    { notes: 'G4 . G4 . A4 . B4 . G4 . F#4 . E4 . D4 .', lyrics: 'A-rid-ing on a po-ny' },
-    { notes: 'G4 . G4 . A4 . B4 . C5 . B4 . A4 . G4 .', lyrics: 'Stuck a feath-er in his cap' },
-    { notes: 'F#4 . D4 . E4 . F#4 . G4 . G4 . G4 . . .', lyrics: 'And called it mac-a-ro-ni' },
-    { notes: 'E4 . F#4 . E4 . D4 . E4 . F#4 . G4 . . .', lyrics: 'Yan-kee Doo-dle keep it up' },
-    { notes: 'D4 . E4 . D4 . C5 . B4 . D5 . . . . .', lyrics: 'Yan-kee Doo-dle dan-dy' },
-    { notes: 'E4 . F#4 . E4 . D4 . E4 . F#4 . G4 . E4 .', lyrics: 'Mind the mu-sic and the step' },
-    { notes: 'D4 . G4 . F#4 . A4 . G4 . G4 . . . . .', lyrics: 'And with the girls be han-dy' },
+    { notes: 'G4 G4 A4 B4 G4 B4 A4 D5', lyrics: 'Yan-kee Doo-dle went to town' },
+    { notes: 'G4 G4 A4 B4 G4 F#4 E4 D4', lyrics: 'A-rid-ing on a po-ny' },
+    { notes: 'G4 G4 A4 B4 C5 B4 A4 G4', lyrics: 'Stuck a feath-er in his cap' },
+    { notes: 'F#4 D4 E4 F#4 G4 G4 G4 .', lyrics: 'And called it mac-a-ro-ni' },
+    { notes: 'E4 F#4 E4 D4 E4 F#4 G4 .', lyrics: 'Yan-kee Doo-dle keep it up' },
+    { notes: 'D4 E4 D4 C5 B4 D5 . .', lyrics: 'Yan-kee Doo-dle dan-dy' },
+    { notes: 'E4 F#4 E4 D4 E4 F#4 G4 E4', lyrics: 'Mind the mu-sic and the step' },
+    { notes: 'D4 G4 F#4 A4 G4 G4 . .', lyrics: 'And with the girls be han-dy' },
   ],
   arrangement: [0, 1, 2, 3, 4, 5, 6, 7],
   loopBars: 64,
@@ -676,7 +727,6 @@ const yankeeDoodleSong: SongFile = {
   },
   instruments: {
     keys: { name: 'Sing along', octave: 4 },
-    pad: { wave: 'triangle', cutoff: 800 },
     fx: ['reverb'],
   },
 }
@@ -694,11 +744,11 @@ export const PRESETS: Preset[] = [
   { name: 'Envelope VCA', blurb: 'A classic modular voice: keyboard, oscillator, envelope and VCA.', build: envelopeVca },
   { name: 'Ode to Joy', blurb: "Beethoven's hymn theme from the Ninth Symphony.", build: odeToJoy },
   { name: 'Für Elise', blurb: "Beethoven's famous E–D♯–E opening.", build: fuerElise },
-  { name: 'Twinkle Twinkle Little Star', blurb: 'The traditional English nursery song.', build: twinkle },
+  { name: 'Twinkle Twinkle Little Star', blurb: 'The traditional English nursery song, sung with a lead and drums in a 64-bar loop.', build: twinkle },
   { name: 'The Entertainer', blurb: "Scott Joplin's 1902 ragtime hook (public domain).", build: entertainer },
   { name: 'In the Hall of the Mountain King', blurb: "Grieg's creeping theme from Peer Gynt.", build: mountainKing },
   { name: 'When the Saints Go Marching In', blurb: 'The traditional New Orleans spiritual.', build: saints },
-  { name: 'Eine kleine Nachtmusik', blurb: "Mozart's opening fanfare from the 1787 serenade.", build: nachtmusik },
+  { name: 'Eine kleine Nachtmusik', blurb: "Mozart's opening theme from the 1787 serenade, as a 128-bar melody chain.", build: nachtmusik },
   { name: 'Jingle Bells', blurb: "James Pierpont's 1857 holiday song (public domain).", build: jingleBells },
   { name: 'Row, Row, Row Your Boat', blurb: 'A sung public-domain hook, built from song JSON.', build: rowYourBoat },
   {
