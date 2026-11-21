@@ -1,3 +1,5 @@
+import { normalizeBars, normalizeOrder } from './arrangement'
+
 export const TRACKS = ['bd', 'sd', 'cp', 'ch', 'oh', 'cb', 'acc'] as const
 export type TrackId = (typeof TRACKS)[number]
 
@@ -34,6 +36,13 @@ export type Pattern = Record<TrackId, Track>
 export interface Bank {
   patterns: Pattern[]
   current: number
+  /** Memory slots to walk, in order. Empty: loop `current`. */
+  order: number[]
+  /**
+   * Bars in one full loop of the chain (64 and 128 are the usual lengths).
+   * 0 means "keep looping the order".
+   */
+  bars: number
 }
 
 const emptyTrack = (): Track => ({
@@ -180,6 +189,8 @@ export const isFactorySlot = (index: number) => index < FACTORY_COUNT
 export const defaultBank = (): Bank => ({
   patterns: Array.from({ length: PATTERN_COUNT }, (_, i) => factoryPattern(i)),
   current: 0,
+  order: [],
+  bars: 0,
 })
 
 /**
@@ -188,7 +199,7 @@ export const defaultBank = (): Bank => ({
  * of tens, and stays readable if anyone opens the JSON.
  */
 export function serializeBank(bank: Bank): string {
-  return JSON.stringify({
+  const payload: Record<string, unknown> = {
     c: bank.current,
     p: bank.patterns.map((pattern) =>
       Object.fromEntries(
@@ -210,7 +221,12 @@ export function serializeBank(bank: Bank): string {
         }),
       ),
     ),
-  })
+  }
+  const order = normalizeOrder(bank.order, PATTERN_COUNT)
+  if (order.length) payload.o = order
+  const bars = normalizeBars(bank.bars)
+  if (bars) payload.b = bars
+  return JSON.stringify(payload)
 }
 
 const digits = (text: unknown, fallback: number, map: (c: string) => number): number[] =>
@@ -225,7 +241,7 @@ const digits = (text: unknown, fallback: number, map: (c: string) => number): nu
 export function parseBank(raw: unknown): Bank {
   if (typeof raw !== 'string' || !raw.trim()) return defaultBank()
   try {
-    const data = JSON.parse(raw) as { c?: number; p?: unknown[] }
+    const data = JSON.parse(raw) as { c?: number; p?: unknown[]; o?: unknown; b?: unknown }
     if (!Array.isArray(data.p) || !data.p.length) return defaultBank()
 
     const patterns = data.p.slice(0, PATTERN_COUNT).map((rawPattern) => {
@@ -247,8 +263,31 @@ export function parseBank(raw: unknown): Bank {
     })
 
     while (patterns.length < PATTERN_COUNT) patterns.push(factoryPattern(patterns.length))
-    return { patterns, current: Math.min(PATTERN_COUNT - 1, Math.max(0, Number(data.c) || 0)) }
+    return {
+      patterns,
+      current: Math.min(PATTERN_COUNT - 1, Math.max(0, Number(data.c) || 0)),
+      order: normalizeOrder(data.o, PATTERN_COUNT),
+      bars: normalizeBars(data.b),
+    }
   } catch {
     return defaultBank()
   }
+}
+
+/** Resolve a factory beat by name, short name, or a slot index. */
+export function patternIndexFromName(name: unknown): number | null {
+  if (typeof name === 'number' && Number.isInteger(name) && name >= 0 && name < PATTERN_COUNT) return name
+  if (typeof name !== 'string') return null
+  const raw = name.trim()
+  if (!raw) return null
+  const asNum = Number(raw)
+  if (Number.isInteger(asNum) && asNum >= 0 && asNum < PATTERN_COUNT) return asNum
+  const needle = raw.toLowerCase()
+  const exact = PATTERN_NAMES.findIndex((n) => n.toLowerCase() === needle)
+  if (exact >= 0) return exact
+  const short = PATTERN_SHORT.findIndex((n) => n.toLowerCase() === needle)
+  if (short >= 0) return short
+  const slug = needle.replace(/[^a-z0-9]+/g, ' ').trim()
+  const loose = PATTERN_NAMES.findIndex((n) => n.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() === slug)
+  return loose >= 0 ? loose : null
 }

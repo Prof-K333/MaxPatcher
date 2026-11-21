@@ -1,0 +1,67 @@
+{
+  "format": "patcher-song",
+  "version": 1,
+  "name": "Row, Row, Row Your Boat",
+  "bpm": 108,
+  "key": "C",
+  "root": "C4",
+  "lyrics": "Row, row, row your boat gently down the stream. Merrily, merrily, merrily, merrily, life is but a dream.",
+  "voice": {
+    "body": "female",
+    "vowel": "ah",
+    "breath": 0.72
+  },
+  "bars": [
+    {
+      "notes": "C4 . C4 . C4 . D4 . E4 . . . E4 . D4 . E4 .",
+      "lyrics": "Row row row your boat gent-ly down the"
+    },
+    {
+      "notes": "F4 . . . G4 . . . . . . . . . . .",
+      "lyrics": "stream"
+    },
+    {
+      "notes": "C5 C5 C5 G4 G4 G4 E4 E4 E4 C4 C4 C4 . . . .",
+      "lyrics": "Mer-ri-ly mer-ri-ly mer-ri-ly mer-ri-ly"
+    },
+    {
+      "notes": "G4 . F4 . E4 . D4 . C4 . . . . . . .",
+      "lyrics": "life is but a dream"
+    }
+  ],
+  "arrangement": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "loopBars": 64,
+  "drums": {
+    "presets": [
+      "Four on the floor",
+      "House",
+      "Clave",
+      "Half time"
+    ],
+    "order": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "bars": 64
+  },
+  "instruments": {
+    "keys": {
+      "name": "Sing along",
+      "octave": 4
+    },
+    "pad": {
+      "wave": "triangle",
+      "cutoff": 700
+    },
+    "fx": [
+      "reverb"
+    ]
+  }
+}

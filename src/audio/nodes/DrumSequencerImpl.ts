@@ -2,6 +2,7 @@ import * as Tone from 'tone'
 import { NodeImpl, type AudioTarget } from '../NodeImpl'
 import { CVInlet } from '../cv'
 import { LookaheadClock } from '../sequencer/LookaheadClock'
+import { BAR_STEPS, nextArrangeBar, slotAtBar } from '../sequencer/arrangement'
 import { parseBank, serializeBank, TRACKS, type Bank, type TrackId } from '../sequencer/pattern'
 import type { PatchEvent } from '../types'
 
@@ -40,6 +41,12 @@ export class DrumSequencerImpl extends NodeImpl {
 
   /** Latest played step per track, for the UI playhead. */
   readonly display: Record<string, number> = {}
+  /** Memory slot actually playing, which may differ from the edited `current`. */
+  displaySlot = 0
+  /** How far through the arrangement we are, in bars. */
+  arrangeBar = 0
+  /** Sixteenth-note count within the current bar of the chain. */
+  private barPulse = 0
   onPatternChange: (() => void) | null = null
 
   constructor() {
@@ -83,8 +90,13 @@ export class DrumSequencerImpl extends NodeImpl {
     return this.running
   }
 
+  /** The slot the arrangement is playing, or the one selected when there is no chain. */
+  playingSlot(): number {
+    return slotAtBar(this.bank.order, this.arrangeBar) ?? this.bank.current
+  }
+
   get pattern() {
-    return this.bank.patterns[this.bank.current]
+    return this.bank.patterns[this.playingSlot()] ?? this.bank.patterns[this.bank.current]
   }
 
   getBank(): Bank {
@@ -113,6 +125,9 @@ export class DrumSequencerImpl extends NodeImpl {
 
   reset() {
     this.clock.reset()
+    this.arrangeBar = 0
+    this.barPulse = 0
+    this.displaySlot = this.playingSlot()
     TRACKS.forEach((t) => {
       this.positions[t] = 0
       this.display[t] = 0
@@ -175,6 +190,30 @@ export class DrumSequencerImpl extends NodeImpl {
     this.emit('ev:clockOut', { type: 'bang', time })
     // The bass drum lane defines the bar as far as downstream modules care.
     if (this.positions.bd === 0) this.emit('ev:loop', { type: 'bang', time })
+
+    this.displaySlot = this.playingSlot()
+    this.advanceBar()
+  }
+
+  /**
+   * After sixteen 16th notes, step to the next memory preset in the chain.
+   * The grid stays one bar; the chain is what makes 64- and 128-bar loops.
+   */
+  private advanceBar() {
+    this.barPulse++
+    if (this.barPulse < BAR_STEPS) return
+    this.barPulse = 0
+    if (!this.bank.order.length) return
+    const before = this.playingSlot()
+    this.arrangeBar = nextArrangeBar(this.bank.order.length, this.bank.bars, this.arrangeBar)
+    const after = this.playingSlot()
+    this.displaySlot = after
+    if (after !== before) {
+      TRACKS.forEach((t) => {
+        this.positions[t] = 0
+        this.display[t] = 0
+      })
+    }
   }
 
   /** Where a track currently sits, including its own rotation. */

@@ -69,7 +69,7 @@ export interface PatchNodeData extends Record<string, unknown> {
 
 /** Discrete messages that travel along event cables. */
 export type PatchEvent =
-  | { type: 'noteOn'; note: number; freq: number; velocity: number; time?: number }
+  | { type: 'noteOn'; note: number; freq: number; velocity: number; time?: number; syllable?: string }
   | { type: 'noteOff'; note: number; time?: number }
   | { type: 'bang'; velocity?: number; time?: number }
 

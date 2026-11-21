@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { engine } from '../../audio/AudioEngine'
 import type { ArpImpl } from '../../audio/nodes/ArpImpl'
 import {
+  BAR_STEPS,
+  MAX_SEQ_STEPS,
   NOTE_STEPS,
   ROLL_ROWS,
   SEQ_FACTORY_COUNT,
@@ -11,11 +13,13 @@ import {
   factorySequence,
   isFactorySeqSlot,
   parseSeqBank,
+  resizeSequence,
   serializeSeqBank,
   type NoteSequence,
   type SeqBank,
 } from '../../audio/sequencer/noteSeq'
 import type { NodeUIProps } from './types'
+import { MemoryChain } from './MemoryChain'
 
 /** Top row is the octave, so the roll reads like a keyboard turned sideways. */
 const ROW_NAMES = ['C', 'B', 'A#', 'A', 'G#', 'G', 'F#', 'F', 'E', 'D#', 'D', 'C#', 'C']
@@ -26,8 +30,9 @@ export function ArpUI({ nodeId, params, setParam }: NodeUIProps) {
   const impl = useCallback(() => engine.getImpl(nodeId) as ArpImpl | undefined, [nodeId])
   const [bank, setBank] = useState<SeqBank>(() => parseSeqBank(params.steps))
   const seq = bank.sequences[bank.current]
-  const [, redraw] = useState(0)
-  const headRef = useRef(0)
+  const [playhead, setPlayhead] = useState({ step: 0, slot: 0, bar: 0 })
+  const lastHead = useRef(playhead)
+  const [page, setPage] = useState(0)
 
   const running = Number(params.running ?? 0) >= 0.5
   const hold = Number(params.hold ?? 0) >= 0.5
@@ -44,9 +49,13 @@ export function ArpUI({ nodeId, params, setParam }: NodeUIProps) {
     let frame = 0
     const loop = () => {
       const node = impl()
-      if (node && headRef.current !== node.displayStep) {
-        headRef.current = node.displayStep
-        redraw((n) => n + 1)
+      if (node) {
+        const next = { step: node.displayStep, slot: node.displaySlot, bar: node.displayBar }
+        const last = lastHead.current
+        if (last.step !== next.step || last.slot !== next.slot || last.bar !== next.bar) {
+          lastHead.current = next
+          setPlayhead(next)
+        }
       }
       frame = requestAnimationFrame(loop)
     }
@@ -62,6 +71,9 @@ export function ArpUI({ nodeId, params, setParam }: NodeUIProps) {
   const clone = (): SeqBank => ({
     current: bank.current,
     sequences: bank.sequences.map((s) => s.map((c) => ({ ...c }))),
+    order: [...(bank.order ?? [])],
+    bars: bank.bars ?? 0,
+    lyrics: Array.from({ length: bank.sequences.length }, (_, i) => bank.lyrics?.[i] ?? ''),
   })
 
   /** Replaces just the selected slot's notes. */
@@ -147,9 +159,13 @@ export function ArpUI({ nodeId, params, setParam }: NodeUIProps) {
             title="How many steps before the sequence repeats"
             type="number"
             min={1}
-            max={NOTE_STEPS}
+            max={MAX_SEQ_STEPS}
             value={length}
-            onChange={(e) => setParam('length', Math.min(NOTE_STEPS, Math.max(1, Number(e.target.value) || 1)))}
+            onChange={(e) => {
+              const nextLen = Math.min(MAX_SEQ_STEPS, Math.max(1, Number(e.target.value) || 1))
+              setParam('length', nextLen)
+              commitSeq(resizeSequence(seq, nextLen))
+            }}
             className="nodrag nopan h-4 w-9 rounded bg-slate-900 px-1 text-[10px] tabular-nums text-slate-200 outline-none ring-1 ring-white/10"
           />
         </label>
@@ -206,7 +222,52 @@ export function ArpUI({ nodeId, params, setParam }: NodeUIProps) {
         ))}
       </div>
 
-      {/* Piano roll — only meaningful in sequence mode, dimmed in arp. */}
+      <MemoryChain
+        order={bank.order ?? []}
+        bars={bank.bars ?? 0}
+        current={bank.current}
+        playing={running ? playhead.slot : undefined}
+        names={SEQ_SHORT}
+        accent="emerald"
+        onChange={(order, bars) => commit({ ...clone(), order, bars })}
+      />
+
+      <textarea
+        title="Words for this memory slot. A Vocal Synth walks them, one syllable per sounded note."
+        placeholder="Lyrics for this slot (optional)"
+        value={bank.lyrics?.[bank.current] ?? ''}
+        onChange={(e) => {
+          const next = clone()
+          next.lyrics[next.current] = e.target.value
+          commit(next)
+        }}
+        rows={2}
+        className={`nodrag nopan w-full resize-y rounded bg-slate-900 px-1.5 py-1 text-[11px] text-slate-100 placeholder:text-slate-600 outline-none ring-1 ring-white/10 focus:ring-emerald-400 ${mode === 'arp' ? 'opacity-45' : ''}`}
+      />
+
+      {/* Piano roll — one 16-beat bar at a time, dimmed in arp mode. */}
+      {Math.ceil((seq.length || NOTE_STEPS) / BAR_STEPS) > 1 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="text-[8px] uppercase tracking-wider text-slate-500">Bar</span>
+          {Array.from({ length: Math.ceil(seq.length / BAR_STEPS) }, (_, bar) => {
+            const follow = running && mode === 'sequence' && playhead.slot === bank.current
+            const active = (follow ? playhead.bar : page) === bar
+            return (
+              <button
+                key={bar}
+                title={`Edit bar ${bar + 1} of this slot`}
+                onClick={() => setPage(bar)}
+                className={`nodrag nopan rounded px-1.5 py-0.5 text-[9px] ${
+                  active ? 'bg-emerald-500 font-semibold text-slate-950' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                {bar + 1}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       <div className={`rounded bg-black/40 p-1 ${mode === 'arp' ? 'opacity-45' : ''}`}>
         {Array.from({ length: ROLL_ROWS }, (_, row) => (
           <div key={row} className="flex items-center gap-[2px]">
@@ -215,11 +276,14 @@ export function ArpUI({ nodeId, params, setParam }: NodeUIProps) {
             >
               {ROW_NAMES[row]}
             </span>
-            {Array.from({ length: NOTE_STEPS }, (_, step) => {
-              const cell = seq[step]
+            {Array.from({ length: BAR_STEPS }, (_, col) => {
+              const follow = running && mode === 'sequence' && playhead.slot === bank.current
+              const viewBar = follow ? playhead.bar : page
+              const step = viewBar * BAR_STEPS + col
+              const cell = seq[step] ?? { pitch: null, accent: false }
               const on = cell.pitch === rowToPitch(row)
-              const inLoop = step < length
-              const isHead = running && mode === 'sequence' && headRef.current === step
+              const inLoop = step < seq.length
+              const isHead = follow && playhead.step === col && playhead.bar === viewBar
               return (
                 <button
                   key={step}
@@ -247,7 +311,7 @@ export function ArpUI({ nodeId, params, setParam }: NodeUIProps) {
       <div className="flex gap-1">
         <button
           title="Erase every step in the melody"
-          onClick={() => commitSeq(emptySequence())}
+          onClick={() => commitSeq(emptySequence(seq.length || NOTE_STEPS))}
           className="nodrag nopan flex-1 rounded bg-slate-800 px-2 py-1 text-[10px] text-slate-400 hover:bg-rose-500/25"
         >
           Clear
@@ -265,7 +329,7 @@ export function ArpUI({ nodeId, params, setParam }: NodeUIProps) {
           title="Scatter a fresh melody across the grid"
           onClick={() =>
             commitSeq(
-              Array.from({ length: NOTE_STEPS }, () =>
+              Array.from({ length: seq.length || NOTE_STEPS }, () =>
                 Math.random() < 0.55
                   ? { pitch: [0, 2, 3, 5, 7, 10, 12][Math.floor(Math.random() * 7)], accent: Math.random() < 0.25 }
                   : { pitch: null, accent: false },

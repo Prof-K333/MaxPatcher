@@ -17,6 +17,7 @@ import {
   type TrackId,
 } from '../../audio/sequencer/pattern'
 import type { NodeUIProps } from './types'
+import { MemoryChain } from './MemoryChain'
 
 /** The 808's own colour coding: one hue per beat of four. */
 const BEAT_COLOURS = ['#ef4444', '#f97316', '#facc15', '#e2e8f0']
@@ -46,6 +47,7 @@ export function DrumSeqUI({ nodeId, params, setParam }: NodeUIProps) {
   const [selected, setSelected] = useState<{ track: TrackId; step: number } | null>(null)
   const [, redraw] = useState(0)
   const playheadRef = useRef<Record<string, number>>({})
+  const slotRef = useRef(0)
 
   const running = Number(params.running ?? 0) >= 0.5
   const bpm = Number(params.bpm ?? 120)
@@ -77,6 +79,10 @@ export function DrumSeqUI({ nodeId, params, setParam }: NodeUIProps) {
             changed = true
           }
         }
+        if (slotRef.current !== node.displaySlot) {
+          slotRef.current = node.displaySlot
+          changed = true
+        }
         if (changed) redraw((n) => n + 1)
       }
       frame = requestAnimationFrame(loop)
@@ -100,6 +106,8 @@ export function DrumSeqUI({ nodeId, params, setParam }: NodeUIProps) {
         ]),
       ),
     ) as Bank['patterns'],
+    order: [...(bank.order ?? [])],
+    bars: bank.bars ?? 0,
   })
 
   const cycleStep = (track: TrackId, step: number) => {
@@ -249,6 +257,7 @@ export function DrumSeqUI({ nodeId, params, setParam }: NodeUIProps) {
             {Array.from({ length: 8 }, (_, col) => {
               const slot = row * FACTORY_COUNT + col
               const active = bank.current === slot
+              const playing = running && slotRef.current === slot
               const used = TRACKS.some((t) => bank.patterns[slot][t].level.some((v) => v > 0))
               return (
                 <button
@@ -267,9 +276,11 @@ export function DrumSeqUI({ nodeId, params, setParam }: NodeUIProps) {
                   className={`nodrag nopan flex-1 rounded py-1 text-[9px] transition-colors ${
                     active
                       ? 'bg-red-500 font-semibold text-slate-950'
-                      : used
-                        ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
-                        : 'bg-slate-800/60 text-slate-600 hover:bg-slate-700'
+                      : playing
+                        ? 'bg-red-500/40 font-semibold text-red-100'
+                        : used
+                          ? 'bg-slate-700 text-slate-200 hover:bg-slate-600'
+                          : 'bg-slate-800/60 text-slate-600 hover:bg-slate-700'
                   }`}
                 >
                   {PATTERN_SHORT[slot]}
@@ -280,9 +291,20 @@ export function DrumSeqUI({ nodeId, params, setParam }: NodeUIProps) {
         ))}
       </div>
 
+      <MemoryChain
+        order={bank.order ?? []}
+        bars={bank.bars ?? 0}
+        current={bank.current}
+        playing={running ? slotRef.current : undefined}
+        names={PATTERN_SHORT}
+        accent="red"
+        onChange={(order, bars) => commit({ ...clone(), order, bars })}
+      />
+
       <p className="px-0.5 text-[9px] text-slate-500">
-        Pattern <span className="text-red-300">{PATTERN_NAMES[bank.current]}</span> · switching is instant,
-        so chain slots while it runs
+        Pattern <span className="text-red-300">{PATTERN_NAMES[bank.current]}</span>
+        {running ? ` · playing ${PATTERN_NAMES[slotRef.current] ?? slotRef.current}` : ''}
+        · the grid stays 16 beats; the chain is what makes long loops
       </p>
 
       {/* Matrix */}

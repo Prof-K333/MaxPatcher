@@ -2,11 +2,13 @@ import * as Tone from 'tone'
 import { NodeImpl, type AudioTarget } from '../NodeImpl'
 import { CVInlet } from '../cv'
 import { LookaheadClock } from '../sequencer/LookaheadClock'
+import { nextArrangeBar, slotAtBar } from '../sequencer/arrangement'
 import {
-  NOTE_STEPS,
+  BAR_STEPS,
   RATE_BEATS,
   arpOrder,
   parseSeqBank,
+  tokenizeLyrics,
   type ArpMode,
   type NoteSequence,
   type Rate,
@@ -51,13 +53,20 @@ export class ArpImpl extends NodeImpl {
   private rate: Rate = '1/8'
   private octaves = 2
   private gate = 0.5
-  private length = NOTE_STEPS
   private root = 48
   private transpose = 0
   private hold = false
 
-  /** Latest step index, for the UI playhead. */
+  /** Step within the 16-beat bar, for the UI playhead. */
   displayStep = 0
+  /** Bar page within a long slot (0 = first 16 steps). */
+  displayBar = 0
+  /** Memory slot actually playing, which may differ from the edited `current`. */
+  displaySlot = 0
+  /** How far through the arrangement we are, in bars. */
+  private arrangeBar = 0
+  /** Next lyric syllable to attach when a slot has words but no per-step syllables. */
+  private lyricIndex = 0
 
   constructor() {
     super()
@@ -115,12 +124,26 @@ export class ArpImpl extends NodeImpl {
     this.step = 0
     this.arpIndex = 0
     this.pulseAccum = 0
+    this.arrangeBar = 0
+    this.lyricIndex = 0
+    this.displayStep = 0
+    this.displayBar = 0
+    this.displaySlot = this.playingSlot()
     this.clock.reset()
   }
 
-  /** The slot currently selected; `sequence` mode plays this one. */
+  /** The slot the arrangement is playing, or the one selected when there is no chain. */
+  private playingSlot(): number {
+    return slotAtBar(this.bank.order, this.arrangeBar) ?? this.bank.current
+  }
+
+  /** The slot currently sounding; falls back to the selected slot. */
   private get sequence(): NoteSequence {
-    return this.bank.sequences[this.bank.current]
+    return this.bank.sequences[this.playingSlot()] ?? this.bank.sequences[this.bank.current]
+  }
+
+  private slotLength(seq: NoteSequence = this.sequence): number {
+    return Math.max(1, seq.length)
   }
 
   getBank(): SeqBank {
@@ -134,13 +157,15 @@ export class ArpImpl extends NodeImpl {
   // --------------------------------------------------------------- stepping
 
   /** Picks the note this step should play, or null for a rest. */
-  private nextNote(): { note: number; accent: boolean } | null {
+  private nextNote(): { note: number; accent: boolean; syllable?: string } | null {
     const shift = this.transpose + (this.transposeConnected ? Math.round(this.transposeCV.value() * 12) : 0)
 
     if (this.mode === 'sequence') {
-      const cell = this.sequence[this.step % Math.max(1, this.length)]
+      const seq = this.sequence
+      const cell = seq[this.step % this.slotLength(seq)]
       if (!cell || cell.pitch === null) return null
-      return { note: this.root + cell.pitch + shift, accent: cell.accent }
+      const syllable = this.syllableFor(cell)
+      return { note: this.root + cell.pitch + shift, accent: cell.accent, syllable }
     }
 
     const order = arpOrder(this.heldNotes, this.arpMode, this.octaves)
@@ -150,10 +175,26 @@ export class ArpImpl extends NodeImpl {
     return { note: order[index] + shift, accent: false }
   }
 
+  private syllableFor(cell: { syllable?: string; pitch: number | null }): string | undefined {
+    if (cell.syllable) return cell.syllable
+    const slot = this.playingSlot()
+    const words = tokenizeLyrics(this.bank.lyrics[slot] ?? '')
+    if (!words.length) return undefined
+    const word = words[this.lyricIndex % words.length]
+    this.lyricIndex++
+    return word
+  }
+
   private fire(time: number) {
+    const seq = this.sequence
+    const len = this.slotLength(seq)
+    const slot = this.playingSlot()
     const picked = this.nextNote()
-    this.displayStep = this.step % Math.max(1, this.length)
-    this.step = (this.step + 1) % Math.max(1, this.length)
+    this.displaySlot = slot
+    this.displayStep = this.step % BAR_STEPS
+    this.displayBar = Math.floor(this.step / BAR_STEPS)
+    this.step = (this.step + 1) % len
+    if (this.step === 0) this.advanceChain()
     this.emit('ev:step', { type: 'bang', time })
 
     if (!picked) return
@@ -162,12 +203,22 @@ export class ArpImpl extends NodeImpl {
     const velocity = picked.accent ? 1 : 0.75
     const hold = Math.max(0.01, this.clock.stepDuration * this.gate)
 
-    this.emit('ev:note', { type: 'noteOn', note, freq, velocity, time })
+    const on: PatchEvent = { type: 'noteOn', note, freq, velocity, time }
+    if (picked.syllable) on.syllable = picked.syllable
+    this.emit('ev:note', on)
     this.emit('ev:note', { type: 'noteOff', note, time: time + hold })
 
     this.pitchOut.setValueAtTime(freq, time)
     this.gateOut.setValueAtTime(velocity, time)
     this.gateOut.setValueAtTime(0, time + hold)
+  }
+
+  /** Move to the next memory slot when this one has finished, then wrap the chain. */
+  private advanceChain() {
+    if (!this.bank.order.length) return
+    const before = this.playingSlot()
+    this.arrangeBar = nextArrangeBar(this.bank.order.length, this.bank.bars, this.arrangeBar)
+    if (this.playingSlot() !== before) this.lyricIndex = 0
   }
 
   // ----------------------------------------------------------------- params
@@ -199,7 +250,7 @@ export class ArpImpl extends NodeImpl {
         this.clock.swing = n
         break
       case 'length':
-        this.length = Math.max(1, Math.min(NOTE_STEPS, n))
+        // The wrap point is the playing slot's own length, stored on the sequence.
         break
       case 'root':
         this.root = n

@@ -18,6 +18,7 @@ import { EnvelopeImpl } from './nodes/EnvelopeImpl'
 import { VCAImpl } from './nodes/VCAImpl'
 import { MidiInImpl } from './nodes/MidiInImpl'
 import { ScopeImpl } from './nodes/ScopeImpl'
+import { VocalSynthImpl } from './nodes/VocalSynthImpl'
 
 /** Builds the implementation behind one node type. */
 export function createNode(type: string, master: Tone.ToneAudioNode): NodeImpl {
@@ -60,6 +61,8 @@ export function createNode(type: string, master: Tone.ToneAudioNode): NodeImpl {
     }
     case 'fmsynth':
       return new FMSynthImpl()
+    case 'vocalSynth':
+      return new VocalSynthImpl()
     case 'keyboard':
       return new KeyboardImpl()
     case 'sampler':

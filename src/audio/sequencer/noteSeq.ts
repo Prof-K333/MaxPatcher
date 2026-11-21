@@ -1,16 +1,24 @@
+import { BAR_STEPS, normalizeBars, normalizeOrder } from './arrangement'
+
+export { BAR_STEPS }
 export const ROLL_ROWS = 13
-export const NOTE_STEPS = 16
+/** One bar of 16ths — the familiar piano-roll width. */
+export const NOTE_STEPS = BAR_STEPS
+/** Longest single slot, if you stretch one memory slot past a bar. */
+export const MAX_SEQ_STEPS = 128
 
 export interface NoteStep {
   /** Semitones above the sequence root, or null when the step is silent. */
   pitch: number | null
   accent: boolean
+  /** Optional syllable sung on this step when a Vocal Synth is patched in. */
+  syllable?: string
 }
 
 export type NoteSequence = NoteStep[]
 
-export const emptySequence = (): NoteSequence =>
-  Array.from({ length: NOTE_STEPS }, () => ({ pitch: null, accent: false }))
+export const emptySequence = (length = NOTE_STEPS): NoteSequence =>
+  Array.from({ length: Math.min(MAX_SEQ_STEPS, Math.max(1, length)) }, () => ({ pitch: null, accent: false }))
 
 /**
  * Packed as two short strings so a sequence costs a few dozen bytes in the
@@ -19,21 +27,41 @@ export const emptySequence = (): NoteSequence =>
 export function serializeSequence(seq: NoteSequence): string {
   const pitches = seq.map((s) => (s.pitch === null ? '.' : s.pitch.toString(36))).join('')
   const accents = seq.map((s) => (s.accent ? '1' : '0')).join('')
-  return `${pitches}|${accents}`
+  const packed = `${pitches}|${accents}`
+  if (!seq.some((s) => s.syllable)) return packed
+  // A third field, slash-separated, so old two-field strings still load.
+  return `${packed}|${seq.map((s) => encodeSyllable(s.syllable)).join('/')}`
 }
+
+const encodeSyllable = (s?: string) => (s ?? '').replace(/[/|]/g, ' ').trim()
 
 export function parseSequence(raw: unknown): NoteSequence {
   if (typeof raw !== 'string' || !raw.includes('|')) return emptySequence()
-  const [pitches, accents] = raw.split('|')
-  const seq = emptySequence()
-  for (let i = 0; i < NOTE_STEPS; i++) {
+  const [pitches, accents, syllables] = raw.split('|')
+  const count = Math.min(MAX_SEQ_STEPS, Math.max(pitches.length, NOTE_STEPS))
+  const seq = emptySequence(count)
+  const syls = syllables !== undefined ? syllables.split('/') : []
+  for (let i = 0; i < count; i++) {
     const c = pitches[i]
+    const syllable = syls[i]?.trim() || undefined
     if (c && c !== '.') {
       const v = parseInt(c, 36)
-      if (Number.isFinite(v) && v >= 0 && v < ROLL_ROWS) seq[i] = { pitch: v, accent: accents?.[i] === '1' }
+      if (Number.isFinite(v) && v >= 0 && v < ROLL_ROWS) {
+        seq[i] = { pitch: v, accent: accents?.[i] === '1', ...(syllable ? { syllable } : {}) }
+        continue
+      }
     }
+    if (syllable) seq[i] = { pitch: null, accent: false, syllable }
   }
   return seq
+}
+
+/** Words and hyphenated bits, in order — enough to walk a lyric against notes. */
+export function tokenizeLyrics(text: string): string[] {
+  return text
+    .split(/[\s-]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
 }
 
 /** Shipped lines, as [step, semitone, accent] triples above the root. */
@@ -114,15 +142,37 @@ export const startingSequence = (): NoteSequence => factorySequence(0)
 export interface SeqBank {
   sequences: NoteSequence[]
   current: number
+  /** Memory slots to walk, in order. Empty: loop `current`. */
+  order: number[]
+  /**
+   * Bars in one full loop of the chain (64 and 128 are the usual lengths).
+   * 0 means "keep looping the order".
+   */
+  bars: number
+  /** Plain lyrics for each slot, walked one syllable per sounded note. */
+  lyrics: string[]
 }
 
 export const defaultSeqBank = (): SeqBank => ({
   sequences: Array.from({ length: SEQ_SLOT_COUNT }, (_, i) => factorySequence(i)),
   current: 0,
+  order: [],
+  bars: 0,
+  lyrics: Array.from({ length: SEQ_SLOT_COUNT }, () => ''),
 })
 
 export function serializeSeqBank(bank: SeqBank): string {
-  return JSON.stringify({ c: bank.current, s: bank.sequences.map(serializeSequence) })
+  const payload: Record<string, unknown> = {
+    c: bank.current,
+    s: bank.sequences.map(serializeSequence),
+  }
+  const order = normalizeOrder(bank.order, SEQ_SLOT_COUNT)
+  if (order.length) payload.o = order
+  const bars = normalizeBars(bank.bars)
+  if (bars) payload.b = bars
+  const lyrics = Array.from({ length: SEQ_SLOT_COUNT }, (_, i) => bank.lyrics?.[i] ?? '')
+  if (lyrics.some(Boolean)) payload.l = lyrics
+  return JSON.stringify(payload)
 }
 
 /**
@@ -139,14 +189,33 @@ export function parseSeqBank(raw: unknown): SeqBank {
   }
 
   try {
-    const data = JSON.parse(raw) as { c?: number; s?: unknown[] }
+    const data = JSON.parse(raw) as { c?: number; s?: unknown[]; o?: unknown; b?: unknown; l?: unknown }
     if (!Array.isArray(data.s) || !data.s.length) return defaultSeqBank()
     const sequences = data.s.slice(0, SEQ_SLOT_COUNT).map((entry) => parseSequence(entry))
     while (sequences.length < SEQ_SLOT_COUNT) sequences.push(factorySequence(sequences.length))
-    return { sequences, current: Math.min(SEQ_SLOT_COUNT - 1, Math.max(0, Number(data.c) || 0)) }
+    const lyrics = Array.from({ length: SEQ_SLOT_COUNT }, () => '')
+    if (Array.isArray(data.l)) {
+      for (let i = 0; i < Math.min(SEQ_SLOT_COUNT, data.l.length); i++) {
+        if (typeof data.l[i] === 'string') lyrics[i] = data.l[i]
+      }
+    }
+    return {
+      sequences,
+      current: Math.min(SEQ_SLOT_COUNT - 1, Math.max(0, Number(data.c) || 0)),
+      order: normalizeOrder(data.o, SEQ_SLOT_COUNT),
+      bars: normalizeBars(data.b),
+      lyrics,
+    }
   } catch {
     return defaultSeqBank()
   }
+}
+
+/** Resize a slot, keeping existing notes and padding with rests. */
+export function resizeSequence(seq: NoteSequence, length: number): NoteSequence {
+  const next = emptySequence(length)
+  for (let i = 0; i < Math.min(seq.length, next.length); i++) next[i] = { ...seq[i] }
+  return next
 }
 
 export const ARP_MODES = ['up', 'down', 'up-down', 'random', 'as played'] as const

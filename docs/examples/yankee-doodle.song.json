@@ -1,0 +1,95 @@
+{
+  "format": "patcher-song",
+  "version": 1,
+  "name": "Yankee Doodle",
+  "bpm": 116,
+  "key": "G",
+  "root": "D4",
+  "lyrics": "Yankee Doodle went to town a-riding on a pony, stuck a feather in his cap and called it macaroni. Yankee Doodle keep it up, Yankee Doodle dandy, mind the music and the step and with the girls be handy.",
+  "voice": {
+    "body": "male",
+    "vowel": "ah",
+    "breath": 0.7
+  },
+  "bars": [
+    {
+      "notes": "G4 . G4 . A4 . B4 . G4 . B4 . A4 . D5 .",
+      "lyrics": "Yan-kee Doo-dle went to town"
+    },
+    {
+      "notes": "G4 . G4 . A4 . B4 . G4 . F#4 . E4 . D4 .",
+      "lyrics": "A-rid-ing on a po-ny"
+    },
+    {
+      "notes": "G4 . G4 . A4 . B4 . C5 . B4 . A4 . G4 .",
+      "lyrics": "Stuck a feath-er in his cap"
+    },
+    {
+      "notes": "F#4 . D4 . E4 . F#4 . G4 . G4 . G4 . . .",
+      "lyrics": "And called it mac-a-ro-ni"
+    },
+    {
+      "notes": "E4 . F#4 . E4 . D4 . E4 . F#4 . G4 . . .",
+      "lyrics": "Yan-kee Doo-dle keep it up"
+    },
+    {
+      "notes": "D4 . E4 . D4 . C5 . B4 . D5 . . . . .",
+      "lyrics": "Yan-kee Doo-dle dan-dy"
+    },
+    {
+      "notes": "E4 . F#4 . E4 . D4 . E4 . F#4 . G4 . E4 .",
+      "lyrics": "Mind the mu-sic and the step"
+    },
+    {
+      "notes": "D4 . G4 . F#4 . A4 . G4 . G4 . . . . .",
+      "lyrics": "And with the girls be han-dy"
+    }
+  ],
+  "arrangement": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "loopBars": 64,
+  "drums": {
+    "presets": [
+      "Four on the floor",
+      "House",
+      "Four on the floor",
+      "Clave",
+      "Electro",
+      "Boom bap",
+      "Electro",
+      "Breakbeat"
+    ],
+    "order": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "bars": 64
+  },
+  "instruments": {
+    "keys": {
+      "name": "Sing along",
+      "octave": 4
+    },
+    "pad": {
+      "wave": "triangle",
+      "cutoff": 800
+    },
+    "fx": [
+      "reverb"
+    ]
+  }
+}

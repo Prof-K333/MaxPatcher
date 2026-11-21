@@ -3,7 +3,10 @@
 A node-based visual audio patcher in the spirit of Max/MSP. Drag cables between
 nodes on a React Flow canvas; the Web Audio graph is rebuilt to match in real time.
 
-Released under the [MIT License](./LICENSE).
+Released under the [MIT License](./LICENSE). The Vocal Synth vendors Jameson
+Hodge's [Chimera](https://chimera.audio) engine (also MIT); see
+`src/audio/vocal/chimera/LICENSE` and the pinned commit in
+`src/audio/vocal/chimera/COMMIT`.
 
 ## Stack
 
@@ -36,6 +39,17 @@ phrase looper → FM synth → filter) and a sequenced drum machine on the right
 (808 sequencer → TR-808, with the accent lane patched as CV). Both feed the
 master. Press **▶ PLAY** on the sequencer for the beat; play the keyboard over
 the top. The sequencer starts stopped, so Start Audio alone makes no noise.
+
+## Two ways to use it
+
+Patcher is meant to be used in two ways, and both are first-class:
+
+1. **Patching in the UI** — drop nodes on the canvas, cable them together, twist knobs, and listen.
+2. **Prompting an LLM for a song JSON** — give it your lyrics and the schema in [`docs/song-json.md`](docs/song-json.md), then import the file it writes.
+
+The import box already accepts a full `format: "patcher"` graph, but that format is a tangle of positions, cable handles, and packed sequencer strings. Language models get it wrong. `format: "patcher-song"` is a readable companion: lyrics as plain text, melody as note names (`C4`, `E4`, rests as `.`), drum presets by name, a memory-slot chain, and a 64- or 128-bar loop length. Import expands that into a wired, playable patch — sequencer into a Vocal Synth, plus whatever instruments the JSON asked for, into a mixer and Master Out.
+
+Use that path to try unusual instrument combinations, not only the default singer and drums. The docs include a field-by-field schema, a complete public-domain example, and a ready-to-paste prompt.
 
 ## How it fits together
 
@@ -124,6 +138,17 @@ Amplitude and modulation index each get their own ADSR, which is what makes FM
 expressive — a decaying modulation envelope gives a struck or plucked timbre
 rather than a static buzz. Takes notes on `ev:note` and FM depth on `cv:fmDepth`.
 
+**Vocal Synth** — a singer out of the box: notes in, voice out, patchable into
+the mixer. It runs [Chimera](https://chimera.audio) by Jameson Hodge (MIT),
+compiled to WebAssembly and loaded on MaxPatcher's audio context, so the voice
+is cabled like any other module rather than playing through its own speakers.
+The compact panel on the node has body (male / female / child), breath, vowel,
+and a lyrics box. Notes can carry a syllable from the sequencer; otherwise the
+node walks its own lyrics, one syllable per note. Empty lyrics hold the default
+vowel (“ah”), so it still sings. Only one Vocal Synth can run at a time — the
+model is heavy — and a second node will say so rather than starting another
+engine. Credit and the vendored license live in `src/audio/vocal/chimera/`.
+
 **Keyboard** — mouse, glissando and QWERTY (`A`–`K` white, `W/E/T/Y/U` black).
 Four outlets: `note` events for polyphony, plus `pitch`, `gate` and `velocity`
 signals for patching the old modular way. The signal outlets use last-note
@@ -169,6 +194,12 @@ pick the next pitch, one clock, one output: *arp* mode walks whatever notes
 are held at its inlet (up, down, up-down, random, as-played, across 1–4
 octaves), while *sequence* mode plays a pitch from its piano roll. Both emit
 ordinary note events, so anything that accepts a keyboard accepts this.
+The roll stays one 16-beat bar. A memory-slot chain (the same idea as the
+808) can walk factory or custom slots in order and loop that chain for a
+64- or 128-bar form — eight one-bar slots repeated sixteen times is 128
+bars. A slot may also be longer than a bar (up to 128 steps), edited with a
+bar pager. Each slot can carry lyrics; sounded notes attach a syllable so a
+Vocal Synth can sing the line.
 
 Notes leave as an attack **and** a release a gate-length later, rather than
 being held until the next step — that is what makes the Gate knob shorten a
@@ -391,10 +422,10 @@ toolbar slider and the Master Out node are two views of one value.
 
 ## Example patches
 
-![The Patches menu open on Example patches, listing the seven module demos and the eight public-domain song hooks.](docs/images/example-patches.png)
+![The Patches menu open on Example patches, listing module demos and public-domain song hooks.](docs/images/example-patches.png)
 
-**Patches → Example patches** loads fifteen patches: seven module demos and
-eight public-domain song hooks. Each one is a saved performance setup that
+**Patches → Example patches** loads seventeen patches: seven module demos and
+ten public-domain song hooks. Each one is a saved performance setup that
 wires modules together (they live in `src/patch/presets.ts` rather than as
 separate files on disk). They are built to show a different part of the app
 and to make sound as soon as they load:
@@ -416,8 +447,10 @@ and to make sound as soon as they load:
 | **When the Saints Go Marching In** | The traditional New Orleans spiritual, with a swung drum pattern. |
 | **Eine kleine Nachtmusik** | Mozart's opening fanfare from the 1787 serenade. |
 | **Jingle Bells** | James Pierpont's 1857 holiday song (public domain), with cowbell. |
+| **Row, Row, Row Your Boat** | A sung public-domain hook: lyrics, a chained melody, a 64-bar drum loop, and a pad, from song JSON. |
+| **Yankee Doodle** | The traditional public-domain march, including the “Yankee Doodle dandy” chorus, as a 64-bar sung loop (eight memory slots × eight repeats). |
 
-808 Jam, Polymeter Clockwork, Modulation Lab and the eight song hooks play on
+808 Jam, Polymeter Clockwork, Modulation Lab and the ten song hooks play on
 their own once audio is running; Tape Loop Drone and Granular Shimmer are
 instruments, so play the keyboard. Presets are built as ordinary patch files
 and go through the same validation as an imported one, so a broken preset
@@ -476,6 +509,11 @@ Two sharp edges worth remembering if you extend this:
 
 `localStorage` access is wrapped: it throws in private windows and when the
 quota is full, and a failed save surfaces as a toast rather than losing the graph.
+
+The same import path also accepts `format: "patcher-song"` files — lyrics, note
+names, drum preset names, and 64- or 128-bar memory chains — and expands them
+into a regular patch. See [`docs/song-json.md`](docs/song-json.md) for the
+schema, an example, and a prompt you can paste into any LLM.
 
 ## TR-808 Drums
 
@@ -601,7 +639,10 @@ of a ring would be stale the moment it was made.
 ![The 808 Sequencer and TR-808 Drums modules from the starting patch, with trigger and accent cables already patched.](docs/images/808-sequencer.png)
 
 Seven lanes — BD, SD, CP, CH, OH, CB and an accent lane — built to drive the
-808 over event cables.
+808 over event cables. The grid stays 16 beats. A memory-slot chain can walk
+the factory or custom beats in order and loop that chain for a 64- or 128-bar
+form (eight one-bar presets, repeated sixteen times, is 128 bars). With no
+chain set, it still loops the selected pattern, as older patches do.
 
 **The timer never decides when a note sounds.** It decides when to *book*
 notes: every 25ms tick looks 100ms ahead and schedules each due step at an
